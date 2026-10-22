@@ -1,0 +1,32 @@
+# ===== 公开范围：仅插件本体（core 运行时 + plugin 生产文件），其余一律不入库 =====
+
+# 用户数据（记忆库/检查点，绝不入库）
+data/
+checkpoints/
+
+# 设计文档 / 实验 / 测试 / 开发脚本（本地保留，不公开）
+docs/
+tests/
+experiments/
+_dev/
+
+# core 一次性维护脚本
+core/backfill_*.py
+core/merge_tag_fragments.py
+core/migrate_p2.py
+core/retag_ngram.py
+core/seed_wiki.py
+core/_*probe*.py
+
+# 插件开发材料
+plugin/dsh-worldtree/_dev/
+plugin/dsh-worldtree/_bili_fix/
+plugin/dsh-worldtree/.git-plugin-archive/
+
+# 通用
+__pycache__/
+*.pyc
+node_modules/
+*.log
+*.tmp
+.DS_Store

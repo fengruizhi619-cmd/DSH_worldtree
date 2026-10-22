@@ -1,0 +1,9 @@
+# 世界树插件（dsh-worldtree）bundle 内层自装配声明
+# 依据：家族接口与构造标准 §1 + 检查表 §3.1.4b —— 缺 dsh.bundle.patch 的包
+#   在 profile patch 重读时会连同其他条目一起被整批丢弃（工具/面板全变 unknown）。
+# 归属：本包为 bundle 归属（profile dependencies link + bundles 数组），
+#   故*不得*用 dev_uninject_plugin 退役，也不要为它补 profile 层 disabled 条目
+#   （：反过来阻断自装配 → 重启后静默消失）。
+- insert:
+    - id: dsh-worldtree
+      name: 'dsh-worldtree'

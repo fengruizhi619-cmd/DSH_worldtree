@@ -1,0 +1,43 @@
+{
+    "name":  "dsh-worldtree",
+    "version":  "0.8.2",
+    "description":  "世界树系统 —— 记忆系统 v2：向量主题树（层进生长/主题地址/生长记录）。数据迁移完成后接替原记忆插件。独立分支，不属于流变系列。",
+    "private":  true,
+    "type":  "module",
+    "main":  "./lib/main.mjs",
+    "exports":  {
+                    ".":  "./lib/main.mjs",
+                    "./package.json":  "./package.json",
+                    "./cordis.patch.yml":  "./cordis.patch.yml",
+                    "./client":  "./lib/client.js"
+                },
+    "files":  [
+                  "lib/",
+                  "README.md"
+              ],
+    "peerDependencies":  {
+                             "@deepseek-ai/dsh-tools":  "\u003e=0.0.1-rc \u003c2",
+                             "cordis":  "\u003e=4.0.0-rc \u003c5"
+                         },
+    "keywords":  [
+                     "deepseek-harness",
+                     "dsh",
+                     "worldtree",
+                     "memory",
+                     "vector-tree"
+                 ],
+    "license":  "MIT",
+    "dsh":  {
+                "bundle":  {
+                               "patch":  "./cordis.patch.yml"
+                           },
+                "client":  {
+                               "inject":  [
+                                              "@deepseek-ai/dsh-client-runtime",
+                                              "@deepseek-ai/dsh-client-ui-conversation"
+                                          ],
+                               "platform":  "web",
+                               "immediately":  true
+                           }
+            }
+}
