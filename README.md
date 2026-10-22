@@ -17,11 +17,12 @@ DeepSeek Harness（DSH）的长期记忆系统第二代插件。与 v1 同构（
 
 ## 安装
 
-插件按 `../../core/` 相对路径引用树核，需保持本仓库目录布局：clone 后把 `plugin/dsh-worldtree/` 装配进 DSH 插件目录体系，`core/` 留在同级相对位置。数据落 `<仓库>/data/worldtree.db`（首次运行自动建表）。
+插件按 `../../core/` 相对路径引用树核，需保持本仓库目录布局：clone 后把 `plugin/dsh-worldtree/` 装配进 DSH 插件目录体系，`core/` 留在同级相对位置。树库数据落 `data/worldtree.db`（首次运行自动建表；路径可在插件设置中配置）。
 
 ## 依赖
 
-- 本地向量服务（Qwen3-Embedding，端口 8082）：插件自动探活接管；不可用时关键词/基因通道优雅降级
+- **内置向量化服务**：本插件自行托管 llama-server（Qwen3-Embedding-0.6B Q4_K_M，端口 8082），自动探活 / 接管 / 拉起 / 看门狗。需自备 llama-server 可执行文件与 GGUF 模型，路径在配置中指定；服务不可用时检索的关键词 / 基因通道优雅降级
+- wiki 库 liubian.db：由 `helper/wiki_store.py` 存取，不含于本仓库（自备或自 v1 迁移，LU_DB 指定路径）
 - DSH Desktop 运行环境（cordis 4 / dsh-tools）
 
 ## 主要机制
