@@ -1,10 +1,8 @@
-// 流变·记忆 面板（client）：
-//  - 入口：sidebar.panellist 注册「流变wiki」行（id=liubianwiki，order 11 → 第五项）；
-//      行 id 必须与下面 main 槽的 key 完全一致，否则宿主 layout.selectPanel 直接抛错。
-//  - 内容：家族树浏览 + 三模式检索（关键词 / 语义 / 融合）+ 条目详情；
-//  - 数据：本插件宿主路由 /api/liubian-wiki?op=tree|get|find|health（**纯读**，不写任何数据）。
-//      路由背后是记忆侧跨插件服务 liubianWiki——本插件不直读别人的库，也不直写。
-//  - v0.2.0：接真实流变 wiki（184 条目 / 14 根家族）。
+// 流变·记忆 面板（client）—— v0.10.0 三页 IA：
+//  - 星图（默认）：全局梦簇网图（点击下钻簇内成员）+ 常驻检索（结果可切 条目|网图）+ 经典树目录切换
+//  - 入库：P3 自动管线（压缩→提炼→入树）+ 手动上树 + 提交台账（做梦卡退休——做梦=星图本体）
+//  - 设置：元数据驱动渲染（后端新增参数自动出现）
+//  - 数据：插件宿主路由 /api/liubian-wiki（纯读），树核写操作走 helper 子进程
 window.__ModuleLoader__.load({
   id: 'dsh-worldtree',
   factory: function (require) {
@@ -67,6 +65,7 @@ window.__ModuleLoader__.load({
       /* ── 按钮：ghost/outline/primary 三态（1rv3m 配方）── */
       '.lbm-btn{background:transparent;border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-md,8px);cursor:pointer;color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;line-height:18px;height:28px;padding:0 12px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;transition:background .12s ease}',
       '.lbm-btn:hover{background:var(--dsw-alias-interactive-bg-hover)}',
+      '.lbm-btnGhost{background:transparent;color:var(--dsw-alias-label-secondary)}',
       '.lbm-btn:active{background:var(--dsw-alias-interactive-bg-active)}',
       '.lbm-btn:disabled{opacity:.4;cursor:not-allowed}',
       '.lbm-btnPrimary{border-color:transparent;background:var(--dsw-alias-button-primary-fill);color:var(--dsw-alias-button-primary-foreground);height:32px;padding:0 14px;font-size:13px}',
@@ -832,8 +831,7 @@ window.__ModuleLoader__.load({
         : h('span', { style: { color: 'var(--dsw-alias-label-tertiary)', fontSize: '12px' } },
             '解析出 ' + ((parsed && parsed.length) || 0) + ' 条' + ((parsed && parsed.length > 30) ? '（逐条编码约 ' + Math.ceil(parsed.length * 1.2 / 60) + ' 分钟）' : ''))
       var logOk = (up.log || []).filter(function (x) { return x.ok }).length
-      return h('div', { style: { padding: '16px 20px 40px', maxWidth: 720, margin: '0 auto' } },
-        h('div', { className: 'lbm-card' },
+      var upCard = h('div', { className: 'lbm-card' },
           h('div', { className: 'lbm-cardTitle' }, '手动上树'),
           h('div', { className: 'lbm-cardDesc' },
             '推荐 JSON 数组 [{source,text}]（实时解析计数）；Markdown / 纯文本按整篇一条。逐条编码生长，不再送审。'),
@@ -859,15 +857,17 @@ window.__ModuleLoader__.load({
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 } },
             h('button', { className: 'lbm-btn lbm-btnPrimary', type: 'button', onClick: submit, disabled: up.busy },
               up.busy ? '上树中…' : '编码上树'),
-            parseNote)),
-        (up.log || []).length ? h('div', { className: 'lbm-upLog' },
+            parseNote))
+      var upLog = (up.log || []).length ? h('div', { className: 'lbm-upLog' },
           h('div', { style: { marginBottom: 6, paddingBottom: 5, borderBottom: '1px solid var(--dsw-alias-border-l2)', color: 'var(--dsw-alias-label-tertiary)', fontSize: '11px' } },
             '上传日志 · 共 ' + up.log.length + ' 条（成功 ' + logOk + ' · 失败 ' + (up.log.length - logOk) + '）'),
           up.log.slice(-30).map(function (x, i) {
             return h('div', { key: i },
               x.ok ? h('span', null, '✓ ', h('b', null, x.source || '(自动)'), ' → ' + x.path)
                    : h('span', null, '✗ ', h('i', null, x.err)))
-          })) : null)
+          })) : null
+      if (props && props.bare) return h('div', null, upCard, upLog)   // 入库页内嵌模式（v0.10.0）
+      return h('div', { style: { padding: '16px 20px 40px', maxWidth: 720, margin: '0 auto' } }, upCard, upLog)
     }
 
     /* ── 记录视图：P3 管线（作业卡 + 步骤条）+ 提交台账 ── */
@@ -906,7 +906,8 @@ window.__ModuleLoader__.load({
             h('div', { className: 'lbm-barFill' + (iPct >= 100 ? ' is-done' : ''), style: { width: iPct + '%' } })),
           h('span', { className: 'lbm-pct' }, (j.insertTotal || 0) > 0 ? ('入树 ' + (j.insertDone || 0) + '/' + j.insertTotal + ' 条') : '入树 —')))
     }
-    function AuditPanel(props) {
+    /* ── 入库视图（v0.10.0）：自动管线 + 手动上树 + 提交台账（做梦卡退休——做梦=星图本体）── */
+    function PipePanel() {
       var st = React.useState({ list: null, loading: false, error: null, total: 0 })
       var up = st[0], setUp = st[1]
       var ps = React.useState({ jobs: [], recent: [], busy: false })
@@ -992,7 +993,11 @@ window.__ModuleLoader__.load({
         return h('div', { className: 'lbm-card' }, head, err, table, empty)
       }
       return h('div', { style: { padding: '16px 20px 40px', maxWidth: 860, margin: '0 auto' } },
-        renderP3(), renderLedger())
+        renderP3(),
+        h('div', { className: 'lbm-dSecTitle', style: { margin: '14px 0 8px' } }, '手动上树'),
+        h(UploadPanel, { bare: true }),
+        h('div', { className: 'lbm-dSecTitle', style: { margin: '14px 0 8px' } }, '提交台账'),
+        renderLedger())
     }
 
     /* ── 设置视图：元数据驱动渲染（后端 settings_get 新增键自动出现在「其他」组，界面永不过时）── */
@@ -1091,6 +1096,183 @@ window.__ModuleLoader__.load({
           h('button', { className: 'lbm-btn lbm-btnPrimary', type: 'button', onClick: save }, '保存设置'),
           h('span', { className: 'lbm-revs' }, saved)))
     }
+    /* ── 网络图（v2 图架构·2026-10-30）：力导向 canvas，节点=条目 边=kNN(TAU=0.65)
+     * 种子=品牌蓝+光环；半径∝度；qsim 冷暖着色；拖拽固定；点击（位移<6px）→ onNode(source)。
+     * 纯 canvas 自绘（插件 bundle 不引三方库）；hover 走 DOM 浮层不碰画布。 */
+    function NetGraph(props) {
+      var data = props.data || { nodes: [], edges: [] }
+      var onNode = props.onNode || function () {}
+      var height = props.height || 520
+      var wrapRef = React.useRef(null)
+      var canvasRef = React.useRef(null)
+      var hv = React.useState(null)
+      var hover = hv[0], setHover = hv[1]
+      React.useEffect(function () {
+        var wrap = wrapRef.current, canvas = canvasRef.current
+        if (!wrap || !canvas) return
+        var raw = data.nodes || []
+        if (!raw.length) return
+        var W = wrap.clientWidth || 560, H = height
+        var nodes = raw.map(function (n, i) {
+          var ang = (i / raw.length) * Math.PI * 2
+          var rr = Math.min(W, H) * 0.34
+          return { idx: i, source: n.source, head: n.head || '', deg: n.deg || 0,
+                   seed: !!n.seed, qsim: n.qsim,
+                   x: W / 2 + rr * Math.cos(ang) + (Math.random() - 0.5) * 24,
+                   y: H / 2 + rr * Math.sin(ang) + (Math.random() - 0.5) * 24,
+                   vx: 0, vy: 0, fixed: false }
+        })
+        var by = {}; nodes.forEach(function (n) { by[n.idx] = n })
+        var edges = (data.edges || []).filter(function (e) { return by[e[0]] && by[e[1]] })
+        var dpr = Math.min(2, window.devicePixelRatio || 1)
+        canvas.width = W * dpr; canvas.height = H * dpr
+        canvas.style.width = '100%'; canvas.style.height = H + 'px'
+        var ctx = canvas.getContext('2d')
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+        var k = Math.sqrt((W * H) / Math.max(1, nodes.length)) * 0.72
+
+        function step() {
+          var i, j, n, m, dx, dy, d2, d, f
+          for (i = 0; i < nodes.length; i++) {
+            n = nodes[i]
+            for (j = i + 1; j < nodes.length; j++) {
+              m = nodes[j]
+              dx = n.x - m.x; dy = n.y - m.y; d2 = dx * dx + dy * dy
+              if (d2 < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d2 = 1 }
+              else if (d2 > 36000) continue
+              d = Math.sqrt(d2); f = (k * k) / d2
+              var fx = (dx / d) * f, fy = (dy / d) * f
+              n.vx += fx; n.vy += fy; m.vx -= fx; m.vy -= fy
+            }
+          }
+          edges.forEach(function (e) {
+            var a = by[e[0]], b = by[e[1]]
+            dx = b.x - a.x; dy = b.y - a.y
+            var dd = Math.sqrt(dx * dx + dy * dy) || 1
+            f = (dd - 86) * 0.018 * (0.5 + Math.max(0, e[2] - 0.6) * 2.5)
+            var fx2 = (dx / dd) * f, fy2 = (dy / dd) * f
+            a.vx += fx2; a.vy += fy2; b.vx -= fx2; b.vy -= fy2
+          })
+          nodes.forEach(function (n) {
+            if (n.fixed) { n.vx = 0; n.vy = 0; return }
+            n.vx += (W / 2 - n.x) * 0.0016; n.vy += (H / 2 - n.y) * 0.0016
+            n.vx *= 0.85; n.vy *= 0.85
+            n.x += Math.max(-14, Math.min(14, n.vx)); n.y += Math.max(-14, Math.min(14, n.vy))
+            n.x = Math.max(16, Math.min(W - 16, n.x)); n.y = Math.max(16, Math.min(H - 16, n.y))
+          })
+        }
+        function radius(n) {
+          if (n.size != null) return Math.min(26, 7 + Math.sqrt(n.size) * 1.7)   // 簇节点：∝√簇大小
+          return Math.min(16, 4.5 + Math.sqrt(n.deg) * 2.2) + (n.seed ? 2.5 : 0)
+        }
+        function fillOf(n) {
+          if (n.seed) return '#4f6ef7'
+          if (n.size != null) return '#5b7bb4'                                    // 簇节点：统一蓝
+          if (n.qsim != null) {
+            var t = Math.max(0, Math.min(1, ((n.qsim || 0) - 0.3) / 0.35))
+            return 'rgb(' + Math.round(96 + t * 110) + ',' + Math.round(150 - t * 60) + ',' + Math.round(225 - t * 150) + ')'
+          }
+          return '#7d8aa5'
+        }
+        function nearest(mx, my) {
+          var best = null, bd = 20 * 20
+          nodes.forEach(function (n) {
+            var d2 = (n.x - mx) * (n.x - mx) + (n.y - my) * (n.y - my)
+            if (d2 < bd) { bd = d2; best = n }
+          })
+          return best
+        }
+        function pos(ev) {
+          var r = canvas.getBoundingClientRect()
+          return { x: ev.clientX - r.left, y: ev.clientY - r.top }
+        }
+        var drag = null, moved = 0, frame = 0, raf = 0, alive = true
+        function tick() {
+          if (!alive) return
+          var iter = frame < 50 ? 5 : (frame < 180 ? 3 : 1)
+          while (iter-- > 0) step()
+          frame++
+          ctx.clearRect(0, 0, W, H)
+          ctx.lineWidth = 1
+          edges.forEach(function (e) {
+            var a = by[e[0]], b = by[e[1]]
+            ctx.strokeStyle = 'rgba(125,138,165,' + (0.18 + Math.max(0, e[2] - 0.6) * 1.6).toFixed(3) + ')'
+            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke()
+          })
+          nodes.forEach(function (n) {
+            var r = radius(n)
+            if (n.seed) {
+              ctx.beginPath(); ctx.arc(n.x, n.y, r + 5, 0, 6.2832)
+              ctx.strokeStyle = 'rgba(79,110,247,0.45)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.lineWidth = 1
+            }
+            ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 6.2832)
+            ctx.fillStyle = fillOf(n); ctx.fill()
+            if (hoverNode === n || n.fixed) { ctx.strokeStyle = '#1f2937'; ctx.stroke() }
+          })
+          // 标签：种子/悬停常显；labelAll（簇图）全显
+          ctx.font = '11px ' + (window.getComputedStyle(canvas).fontFamily || 'sans-serif')
+          ctx.fillStyle = 'rgba(30,35,50,0.9)'
+          nodes.forEach(function (n) {
+            if (!props.labelAll && !n.seed && hoverNode !== n) return
+            var r = radius(n)
+            var label = (n.head || n.source).slice(0, props.labelAll ? 12 : 16)
+            ctx.fillText(label, n.x + r + 4, n.y + 4)
+          })
+          if (frame < 340) raf = requestAnimationFrame(tick)
+        }
+        var hoverNode = null
+        function onMove(ev) {
+          var p = pos(ev)
+          if (drag) {
+            moved += 1
+            drag.x = Math.max(16, Math.min(W - 16, p.x)); drag.y = Math.max(16, Math.min(H - 16, p.y))
+            return
+          }
+          var n = nearest(p.x, p.y)
+          if (n !== hoverNode) { hoverNode = n; setHover(n ? { x: n.x, y: n.y, node: n } : null) }
+        }
+        function onDown(ev) {
+          var p = pos(ev)
+          var n = nearest(p.x, p.y)
+          if (n) { drag = n; n.fixed = true; moved = 0; raf = requestAnimationFrame(tick) }
+        }
+        function onUp(ev) {
+          if (!drag) return
+          if (moved < 6) onNode(drag.source)
+          drag.fixed = false; drag = null
+        }
+        function onLeave() { hoverNode = null; setHover(null); if (drag) { drag.fixed = false; drag = null } }
+        canvas.addEventListener('mousemove', onMove)
+        canvas.addEventListener('mousedown', onDown)
+        window.addEventListener('mouseup', onUp)
+        canvas.addEventListener('mouseleave', onLeave)
+        raf = requestAnimationFrame(tick)
+        return function () {
+          alive = false
+          cancelAnimationFrame(raf)
+          canvas.removeEventListener('mousemove', onMove)
+          canvas.removeEventListener('mousedown', onDown)
+          window.removeEventListener('mouseup', onUp)
+          canvas.removeEventListener('mouseleave', onLeave)
+        }
+      }, [data])
+      return h('div', { ref: wrapRef, style: { position: 'relative', width: '100%', minHeight: 1 } },
+        h('canvas', { ref: canvasRef }),
+        hover ? h('div', {
+          style: {
+            position: 'absolute', left: Math.min((wrapRef.current ? wrapRef.current.clientWidth : 600) - 220, hover.x + 14),
+            top: Math.max(0, hover.y - 30), maxWidth: 220,
+            background: 'var(--dsw-alias-bg-layer-2,#fff)', border: '.5px solid var(--dsw-alias-border-l3)',
+            borderRadius: 8, padding: '6px 8px', fontSize: 11, lineHeight: '16px',
+            boxShadow: 'var(--dsw-elevation-soft)', pointerEvents: 'none', zIndex: 5,
+          } },
+          h('div', { style: { fontWeight: 600 } }, (hover.node.head || hover.node.source).slice(0, 40)),
+          h('div', { style: { color: 'var(--dsw-alias-label-tertiary)' } },
+            hover.node.size != null ? (hover.node.size + ' 条记忆 · 簇')
+              : ('度 ' + hover.node.deg + (hover.node.seed ? ' · 种子' : '')
+                + (hover.node.qsim != null ? ' · 相关 ' + hover.node.qsim : '')))) : null)
+    }
+
     function WikiApp(props) {
       var back = props && props.backToConversation
       var st = React.useState({ tree: null, loading: true, error: null, count: 0 })
@@ -1114,8 +1296,8 @@ window.__ModuleLoader__.load({
       var dPages = sdp[0], setDPages = sdp[1]
       var sdd = React.useState({ ws: '', id: '', data: null, loading: false, error: null, needWorkspace: false, candidates: null })
       var ddet = sdd[0], setDdet = sdd[1]
-      // 顶栏视图：检索（默认）/ 上传 / 记录（2026-10-11 改名+管线进度条）
-      var svw = React.useState('search')
+      // 顶栏视图（v0.10.0 三页 IA）：星图（默认，梦簇网图+检索）/ 入库（管线+上传+台账）/ 设置
+      var svw = React.useState('atlas')
       var view = svw[0], setView = svw[1]
       // 家族树左栏折叠（管理员 2026-10-10：可向左隐藏，腾出全宽）
       var sto = React.useState(true)
@@ -1336,6 +1518,138 @@ window.__ModuleLoader__.load({
 
       // 标签筛选结果也要触发检索视图（ran 由文字搜索和 tag 筛选共同写入）
       var searching = !!(q.text.trim() || (res.ran && res.hits))
+      // ── 网图视图（v2 图架构·2026-10-30）：检索结果可切「条目｜网图」──
+      var snm = React.useState('list')
+      var netMode = snm[0], setNetMode = snm[1]
+      var sng = React.useState({ data: null, loading: false, error: null, key: '' })
+      var net = sng[0], setNet = sng[1]
+      React.useEffect(function () {
+        if (view !== 'atlas' || !searching || netMode !== 'net') return
+        var text = (q.text || '').trim()
+        var sources = []
+        ;(res.hits || []).forEach(function (r) {
+          if (r.src) sources.push(r.src)
+          else if (r.slug) sources.push('wiki:' + r.slug)
+        })
+        var key = text ? ('t:' + text) : ('s:' + sources.slice(0, 12).join(','))
+        if (!text && !sources.length) { setNet({ data: null, loading: false, error: null, key: key }); return }
+        setNet(function (n) { return n.key === key && n.data ? n : { data: null, loading: true, error: null, key: key } })
+        var url = text
+          ? API + '?op=graph_view&' + qs({ text: text, hops: 2, cap: 60 })
+          : API + '?op=graph_view&' + qs({ sources: sources.slice(0, 12).join(','), hops: 2, cap: 60 })
+        fetchJson(url)
+          .then(function (j) {
+            setNet(function (n) {
+              if (n.key !== key) return n
+              if (!j || !j.ok) return Object.assign({}, n, { loading: false, error: (j && j.error) || '未知错误' })
+              return Object.assign({}, n, { loading: false, error: null, data: j })
+            })
+          })
+          .catch(function (err) {
+            setNet(function (n) { return n.key === key ? Object.assign({}, n, { loading: false, error: String(err) }) : n })
+          })
+      }, [netMode, searching, res.ran, q.text])
+
+      // ── 全局梦簇网图（v0.9.1 主视图）：条目式退休，库按梦簇分区 ──
+      var sgb = React.useState({ data: null, loading: false, error: null, drilled: null, drilledGraph: null, drillLoading: false, drillErr: null, classic: false })
+      var globe = sgb[0], setGlobe = sgb[1]
+      React.useEffect(function () {
+        if (view !== 'atlas' || searching || globe.classic || globe.data || globe.loading || globe.error) return
+        setGlobe(function (g) { return Object.assign({}, g, { loading: true }) })
+        fetchJson(API + '?op=dream')
+          .then(function (j) {
+            if (!j || !j.ok) { setGlobe(function (g) { return Object.assign({}, g, { loading: false, error: (j && j.error) || '未知错误' }) }); return }
+            setGlobe(function (g) { return Object.assign({}, g, { loading: false, data: j, drilled: null, drilledGraph: null }) })
+          })
+          .catch(function (err) { setGlobe(function (g) { return Object.assign({}, g, { loading: false, error: String(err) }) }) })
+      }, [view, searching, globe.classic])
+      function redream() {
+        setGlobe(function (g) { return Object.assign({}, g, { loading: true, error: null, data: null, drilled: null, drilledGraph: null }) })
+        fetchJson(API + '?op=dream&force=1')
+          .then(function (j) {
+            if (!j || !j.ok) { setGlobe(function (g) { return Object.assign({}, g, { loading: false, error: (j && j.error) || '未知错误' }) }); return }
+            setGlobe(function (g) { return Object.assign({}, g, { loading: false, data: j, drilled: null, drilledGraph: null }) })
+          })
+          .catch(function (err) { setGlobe(function (g) { return Object.assign({}, g, { loading: false, error: String(err) }) }) })
+      }
+      function drillCluster(c) {
+        setGlobe(function (g) { return Object.assign({}, g, { drilled: c, drilledGraph: null, drillLoading: true, drillErr: null }) })
+        fetchJson(API + '?op=graph_view&' + qs({ sources: (c.members || []).slice(0, 12).join(','), hops: 1, cap: 50 }))
+          .then(function (j) {
+            setGlobe(function (g) {
+              if (!j || !j.ok) return Object.assign({}, g, { drillLoading: false, drillErr: (j && j.error) || '未知错误' })
+              return Object.assign({}, g, { drillLoading: false, drilledGraph: j })
+            })
+          })
+          .catch(function (err) { setGlobe(function (g) { return Object.assign({}, g, { drillLoading: false, drillErr: String(err) }) }) })
+      }
+      /** 全局簇伪图（useMemo）：节点=Top36 簇，边=簇间 kNN 边计数 */
+      var globeGraph = React.useMemo(function () {
+        var d = globe.data
+        if (!d || !d.clusters) return null
+        var top = (d.clusters || []).slice(0, 36)
+        var local = {}
+        var nodes = top.map(function (c, i) {
+          local[c.id] = i
+          return { source: 'c:' + c.id, head: (c.repHead || c.rep || '').slice(0, 20), size: c.size, deg: 0, seed: false, cluster: c }
+        })
+        var edges = []
+        ;(d.clusterLinks || []).forEach(function (L) {
+          if (local[L[0]] != null && local[L[1]] != null) {
+            edges.push([local[L[0]], local[L[1]], Math.min(0.95, 0.5 + L[2] / 40)])
+            nodes[local[L[0]]].deg += 1; nodes[local[L[1]]].deg += 1
+          }
+        })
+        return { nodes: nodes, edges: edges }
+      }, [globe.data])
+      function openFromGlobe(src) {
+        if (!src) return
+        if (src.indexOf('c:') === 0) {
+          var id = Number(src.slice(2))
+          var c = ((globe.data && globe.data.clusters) || []).filter(function (x) { return x.id === id })[0]
+          if (c) drillCluster(c)
+          return
+        }
+        if (src.indexOf('wiki:') === 0) select(src.slice(5))
+        else loadMem(src)
+      }
+      function renderGlobe() {
+        if (globe.loading) return h('div', { className: 'lbm-empty' }, '正在做梦…（全库游走约 20 秒，结果缓存，条目数变化才重算）')
+        if (globe.error) return h('div', { className: 'lbm-err' }, '做梦失败：' + globe.error,
+          h('div', { style: { marginTop: 8 } }, h('button', { className: 'lbm-btn lbm-btnGhost', onClick: redream }, '重试')))
+        var d = globe.data
+        if (!d || !globeGraph) return h('div', { className: 'lbm-empty' }, '…')
+        // 下钻：簇内成员网图
+        if (globe.drilled) {
+          var c = globe.drilled
+          return h('div', { style: { padding: 10 } },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 } },
+              h('button', { className: 'lbm-btn lbm-btnGhost', style: { padding: '2px 10px', fontSize: 11 }, onClick: function () { setGlobe(function (g) { return Object.assign({}, g, { drilled: null, drilledGraph: null }) }) } }, '‹ 全局'),
+              h('span', { style: { fontWeight: 600, fontSize: 12 } }, '簇 #' + c.id + ' · ' + c.size + ' 条'),
+              h('span', { style: { color: 'var(--dsw-alias-label-tertiary)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, c.repHead)),
+            globe.drillLoading ? h('div', { className: 'lbm-empty' }, '正在取簇内邻域…')
+              : globe.drillErr ? h('div', { className: 'lbm-err' }, globe.drillErr)
+              : h(NetGraph, { data: globe.drilledGraph, height: 430, onNode: function (src) { if (src && src.indexOf('wiki:') === 0) select(src.slice(5)); else if (src) loadMem(src) } }),
+            h('div', { className: 'lbm-dSecTitle', style: { margin: '10px 0 4px' } }, '成员（按做梦热度）'),
+            (c.members || []).slice(0, 20).map(function (m, i) {
+              return h('button', { key: m, type: 'button', className: 'lbm-hit', style: { display: 'block', width: '100%', textAlign: 'left' },
+                onClick: function () { if (m.indexOf('wiki:') === 0) select(m.slice(5)); else loadMem(m) } },
+                h('div', { className: 'lbm-hitTop' },
+                  h('span', { className: 'lbm-hitTitle' }, m),
+                  h('span', { className: 'lbm-tag' }, i < 3 ? '高热' : '成员')))
+            }))
+        }
+        // 全局：簇网图
+        return h('div', { style: { padding: 10 } },
+          h(NetGraph, { data: globeGraph, height: 470, labelAll: true, onNode: openFromGlobe }),
+          h('div', { className: 'lbm-note', style: { padding: '6px 2px', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' } },
+            h('span', null, d.nClusters + ' 簇 · 展示 Top ' + globeGraph.nodes.length),
+            h('span', null, '路过率 ' + (d.visitedRatio != null ? (d.visitedRatio * 100).toFixed(0) + '%' : '—')),
+            h('span', null, '死节点 ' + (((d.dead || {}).isolated || 0) + ((d.dead || {}).zeroVisit || 0))),
+            d.cachedAt ? h('span', null, '缓存 ' + String(d.cachedAt).slice(5, 16).replace('T', ' ')) : null,
+            h('button', { className: 'lbm-btn lbm-btnGhost', style: { padding: '2px 10px', fontSize: 11 }, onClick: redream, title: '强制全库重算（约 20s）' }, '重做梦')),
+          h('div', { className: 'lbm-note', style: { padding: '0 2px' } }, '节点=梦簇（大小∝记忆数）· 边=簇间关联 · 点击下钻 · 拖拽固定'))
+      }
       var modeHint = (MODES.filter(function (m) { return m.id === q.mode })[0] || {}).hint || ''
       // 日记**源**枝的可见集合 = 还没导入成条目的工作区。
       // 判据：树里有没有 `日记/日记-<工作区>` 这个节点（导入器就是这么建家族的）。
@@ -1348,9 +1662,8 @@ window.__ModuleLoader__.load({
       var srcTotal = srcList.reduce(function (a, w) { return a + (w.count || 0) }, 0)
 
       var VIEWS = [
-        { id: 'search', label: '检索' },
-        { id: 'upload', label: '上传' },
-        { id: 'audit', label: '记录' },
+        { id: 'atlas', label: '星图' },
+        { id: 'pipe', label: '入库' },
         { id: 'settings', label: '设置' },
       ]
       return h('div', { className: 'lbm-panel' },
@@ -1369,14 +1682,11 @@ window.__ModuleLoader__.load({
           h('span', { className: 'lbm-spacer' }),
           h('span', { className: 'lbm-stat' },
             treeState.error ? '服务异常'
-              : (treeState.loading ? '载入中…'
-                : (treeState.count + ' 条目 ｜ ' + ((idx && idx.roots.length) || 0) + ' 家族'
-                  + (idx && idx.orphans.length ? ' ｜ 孤儿 ' + idx.orphans.length : '')
-                  + (dtState.total ? ' ｜ 日记 ' + dtState.total : '')))),
-          h('button', { className: 'lbm-btn', type: 'button', onClick: loadTree, title: '重新拉取家族树' }, '刷新'),
+              : (treeState.loading ? '载入中…' : treeState.count + ' 条记忆')),
+          h('button', { className: 'lbm-btn', type: 'button', onClick: loadTree, title: '重新载入' }, '刷新'),
           typeof back === 'function' ? h('button', { className: 'lbm-btn', type: 'button', onClick: function () { back() } }, '返回对话') : null),
 
-        view === 'search' ? h('div', { className: 'lbm-tools' },
+        view === 'atlas' ? h('div', { className: 'lbm-tools' },
           h('div', { className: 'lbm-searchRow' },
             h('input', {
               className: 'lbm-input', type: 'text', value: q.text,
@@ -1422,13 +1732,41 @@ window.__ModuleLoader__.load({
             h('span', { className: 'lbm-spacer' }),
             h('span', { className: 'lbm-note' }, modeHint))) : null,
 
-        view === 'search' ? h('div', { className: 'lbm-body' },
+        view === 'atlas' ? h('div', { className: 'lbm-body' },
           h('div', { className: 'lbm-left', style: treeOpen ? null : { display: 'none' } },
             h('div', { className: 'lbm-paneHead' },
-              searching ? ('检索结果 ' + (res.loading ? '…' : (res.hits ? res.hits.length + ' / ' + res.total : 0)))
-                        : '家族树（含日记归档族；点标题展开 / 右侧看正文 / 大族分页显示）'),
+              searching ? h('span', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
+                h('button', { className: 'lbm-btn lbm-btnGhost', style: { padding: '1px 8px', fontSize: 11 },
+                  onClick: function () { setQ(Object.assign({}, q, { text: '' })) }, title: '清空检索，回到星图' }, '‹ 星图'),
+                h('span', null, '检索结果 ' + (res.loading ? '…' : (res.hits ? res.hits.length + ' / ' + res.total : 0))))
+                : h('span', null, globe.classic ? '目录 · 家族树' : '星图 · 梦簇分区'),
+              searching ? h('span', { className: 'lbm-seg', style: { marginLeft: 'auto' } },
+                h('button', { type: 'button', className: 'lbm-segBtn' + (netMode === 'list' ? ' is-on' : ''),
+                  onClick: function () { setNetMode('list') } }, '条目'),
+                h('button', { type: 'button', className: 'lbm-segBtn' + (netMode === 'net' ? ' is-on' : ''),
+                  onClick: function () { setNetMode('net') } }, '网图'))
+                : h('span', { className: 'lbm-seg', style: { marginLeft: 'auto' } },
+                    h('button', { type: 'button', className: 'lbm-segBtn' + (!globe.classic ? ' is-on' : ''),
+                      onClick: function () { setGlobe(function (g) { return Object.assign({}, g, { classic: false }) }) } }, '簇图'),
+                    h('button', { type: 'button', className: 'lbm-segBtn' + (globe.classic ? ' is-on' : ''),
+                      onClick: function () { setGlobe(function (g) { return Object.assign({}, g, { classic: true }) }) } }, '经典树'))),
             h('div', { className: 'lbm-scroll' },
-              searching
+              searching && netMode === 'net'
+                ? (net.loading ? h('div', { className: 'lbm-empty' }, '正在构建邻域网络…（kNN 图现算，约 2s）')
+                  : net.error ? h('div', { className: 'lbm-err' }, '网图失败：' + net.error)
+                    : (!net.data || !(net.data.nodes || []).length) ? h('div', { className: 'lbm-empty' }, '没有可展示的节点。')
+                      : h('div', { style: { padding: 10 } },
+                          h(NetGraph, {
+                            data: net.data, height: 540,
+                            onNode: function (src) {
+                              if (!src) return
+                              if (src.indexOf('wiki:') === 0) select(src.slice(5))
+                              else loadMem(src)
+                            },
+                          }),
+                          h('div', { className: 'lbm-note', style: { padding: '6px 2px' } },
+                            '节点 ' + net.data.nodes.length + ' · 边 ' + (net.data.edges || []).length + ' · 蓝=种子 冷暖=与查询相关度 · 大小=连接度 · 拖拽=固定 · 点击=打开')))
+                : searching
                 ? (res.loading ? h('div', { className: 'lbm-empty' }, '检索中…')
                   : res.error ? h('div', { className: 'lbm-err' }, '检索失败：' + res.error)
                     : (!res.hits || !res.hits.length) ? h('div', { className: 'lbm-empty' }, '没有命中。换个词，或切到「语义」模式试试。')
@@ -1453,6 +1791,7 @@ window.__ModuleLoader__.load({
                               h('div', { className: 'lbm-hitPath' }, r.fullPath),
                               r.snippet ? h('div', { className: 'lbm-hitSnip' }, r.snippet) : null)
                           })))
+                : !globe.classic ? renderGlobe()
                 : treeState.loading ? h('div', { className: 'lbm-empty' }, '载入家族树…')
                   : treeState.error ? h('div', { className: 'lbm-err' }, '家族树不可用：' + treeState.error
                       + '（提示：本面板走插件自带 /api/liubian-wiki 路由，后端=本地 wiki_store 只读副本（.memory_registry/liubian.db）；路由缺席时只读不可用）')
@@ -1520,9 +1859,8 @@ window.__ModuleLoader__.load({
                     onSelect: openWiki, onDiary: openDiary,
                   }))))
         : h('div', { className: 'lbm-scroll' },
-            // 非检索视图：全宽渲染（2026-10-17 修复：此前上传挤在底部条、记录/设置挤在树旁右列）
-            view === 'upload' ? h(UploadPanel, null)
-            : view === 'audit' ? h(AuditPanel, null)
+            // 非星图视图：全宽渲染（入库=管线+上传+台账；设置）
+            view === 'pipe' ? h(PipePanel, null)
             : view === 'settings' ? h(SettingsPanel, null)
             : null))
     }
@@ -1535,6 +1873,7 @@ window.__ModuleLoader__.load({
       mdToBlocks: mdToBlocks, mdInline: mdInline, buildTree: buildTree, Md: Md,
       Detail: Detail, DiaryBranch: DiaryBranch, DiaryRows: DiaryRows, DiaryDetail: DiaryDetail,
       TreeNode: TreeNode, scopeParams: scopeParams, TREE_PAGE: TREE_PAGE, DIARY_FAMILY: DIARY_FAMILY,
+      PipePanel: PipePanel, UploadPanel: UploadPanel,
     }
     exports.apply = function (ctx) {
       ctx.effect(function () {

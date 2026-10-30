@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-export const PLUGIN_VERSION = '0.8.2'
+export const PLUGIN_VERSION = '0.10.0'
 export const TOOL_NAME = '_dsh_external_worldtree'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/Feng'
@@ -76,7 +76,7 @@ const DEFAULTS = {
   llmKey: '',
   llmModel: '',
   /** 单次 helper 调用超时 */
-  helperTimeoutMs: 60000,
+  helperTimeoutMs: 120000,
   /** 长文本走临时文件的阈值（检查表 §3.4.2：命令行 32KB 上限） */
   fileChannelBytes: 20000,
 }
@@ -180,7 +180,7 @@ async function embed(cfg, texts) {
 export const PANEL_ID = 'liubianwiki'
 export const ROUTE_PATH = '/api/liubian-wiki'
 export const CONTRACT_VERSION = '1.0'
-const WIKI_OPS = ['health', 'tree', 'get', 'find', 'diary_tree', 'diary_list', 'diary_get', 'uploads', 'wt_tree', 'tag_table', 'tag_filter', 'entry_tags', 'entry_get', 'insert', 'p3_status', 'settings_get', 'settings_save']
+const WIKI_OPS = ['health', 'tree', 'get', 'find', 'diary_tree', 'diary_list', 'diary_get', 'uploads', 'wt_tree', 'tag_table', 'tag_filter', 'entry_tags', 'entry_get', 'graph_view', 'dream', 'insert', 'p3_status', 'settings_get', 'settings_save']
 
 function wikiSendJson(res, status, obj) {
   try {
@@ -410,6 +410,51 @@ function wikiMountPanelRoutes(ctx, cfg) {
                 if (params.source) req3.source = String(params.source)
                 if (params.limit) req3.limit = Number(params.limit)
                 const r = await callCore(cfg, { op, ...req3 })
+                wikiSendJson(res, r.ok ? 200 : 503, r.ok ? r.data : { ok: false, error: r.error })
+                return
+              }
+              if (op === 'graph_view') {
+                // v2 网络图：种子 sources 或查询文本（服务端嵌入后传树核）
+                const req4 = { hops: Number(params.hops) || 2, cap: Number(params.cap) || 60 }
+                const seeds = String(params.sources || '').split(',').map((s) => s.trim()).filter(Boolean)
+                if (seeds.length) req4.sources = seeds.slice(0, 16)
+                const text = String(params.text || '').trim()
+                if (text) {
+                  const e = await embed(cfg, [text])
+                  if (!e.ok) { wikiSendJson(res, 503, { ok: false, error: '嵌入失败：' + e.error }); return }
+                  req4.text = text; req4.vecs = e.vectors[0]
+                }
+                if (!req4.sources && !req4.text) {
+                  wikiSendJson(res, 400, { ok: false, error: 'op=graph_view 需要 sources 或 text' }); return
+                }
+                const r = await callCore(cfg, { op: 'graph_view', ...req4 })
+                wikiSendJson(res, r.ok ? 200 : 503, r.ok ? r.data : { ok: false, error: r.error })
+                return
+              }
+              if (op === 'dream') {
+                // v2 做梦（v0.9.1 加缓存）：树核全流程约 23s，结果缓存 worldtree/dream_cache.json；
+                // 失效判据 = entry_vecs 行数变化（条目数不变 → 簇划分稳定：树核随机种子固定可复现）
+                const force = String(params.force || '') === '1'
+                const dreamCacheFile = () => join(DSH_HOME, 'worldtree', 'dream_cache.json')
+                // 缓存键 = vec_count 行数（统一口径：dream.total 与 vec_count 实测差 1——join 与直计数口径不同，若各用各的缓存永不命中）
+                const cnt = await callCore(cfg, { op: 'vec_count' })
+                const vecN = cnt.ok ? Number(cnt.data && cnt.data.count) : null
+                if (!force && vecN != null) {
+                  try {
+                    const c = JSON.parse(readFileSync(dreamCacheFile(), 'utf8'))
+                    if (c && c.payload && Number(c.n) === vecN) {
+                      wikiSendJson(res, 200, Object.assign({}, c.payload, { cachedAt: c.at }))
+                      return
+                    }
+                  } catch { /* 无缓存/损坏 → 现算 */ }
+                }
+                const r = await callCore(cfg, { op: 'dream', n_dreams: Number(params.n_dreams) || 10 })
+                if (r.ok) {
+                  try {
+                    mkdirSync(dirname(dreamCacheFile()), { recursive: true })
+                    writeFileSync(dreamCacheFile(), JSON.stringify({ at: new Date().toISOString(), n: vecN != null ? vecN : ((r.data && r.data.total) || 0), payload: r.data }), 'utf8')
+                  } catch (e) { ctx.logger?.warn?.(`[dsh-worldtree] dream 缓存写入失败（不影响本次结果）: ${e && e.message}`) }
+                }
                 wikiSendJson(res, r.ok ? 200 : 503, r.ok ? r.data : { ok: false, error: r.error })
                 return
               }
