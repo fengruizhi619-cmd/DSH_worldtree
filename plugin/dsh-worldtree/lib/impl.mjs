@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-export const PLUGIN_VERSION = '0.10.1'
+export const PLUGIN_VERSION = '0.10.2'
 export const TOOL_NAME = '_dsh_external_worldtree'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/Feng'
@@ -1649,6 +1649,7 @@ function p3Drain(ctx, cfg) {
                 + '  **终态**——现状如何；方案被推翻或修正必须显式标注终态与防回归措施\n'
                 + '- **自洽检查**：结论与机制必须互相支撑——反向故障（结论说 A、机制推出 B）比过时更危险\n'
                 + '- **篇数不限**：有几条值得留的就出几条；一次性的操作过程、寒暄、中间试错不要\n'
+                + '- **head 纪律**：≤32字的知识命名（主题词开头、含可搜索词）；禁止消息编号(m0xxxx)与「TASK AS OF/USER GOAL/已完成」等模板或过程回声\n'
                 + '- 严格 JSON 数组输出：[{"head":"一句话简介（含可搜索词）","body":"结论/机制/终态 三段正文"}]\n\n【上下文】\n'
                 + sl.join('\n\n') },
             ] }),
