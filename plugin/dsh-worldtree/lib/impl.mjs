@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-export const PLUGIN_VERSION = '0.10.0'
+export const PLUGIN_VERSION = '0.10.1'
 export const TOOL_NAME = '_dsh_external_worldtree'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/Feng'
@@ -1021,7 +1021,7 @@ function injectMount(ctx, cfg) {
       if (q && q.length >= (cfg.injectMinChars || 8)) {
         const e = await guard(embed(cfg, [q.slice(0, 2000)]))
         if (e && e.ok) {
-          let rc = await guard(callCore(cfg, { op: 'race', vecs: e.vectors[0], text: q, want: Number(cfg.injectHeatTop) || 200 }))
+          let rc = await guard(callCore(cfg, { op: 'race', vecs: e.vectors[0], text: q, sid: skey, want: Number(cfg.injectHeatTop) || 200 }))
           if (rc && rc.ok) {
             table = rc.data.ranked || []
             const missing = rc.data.missing || []
@@ -1030,7 +1030,7 @@ function injectMount(ctx, cfg) {
               const em = await guard(embed(cfg, missing.map((m) => m.text.slice(0, 4000))))
               if (em && em.ok) {
                 await guard(callCore(cfg, { op: 'vec_cache_set', items: missing.map((m, i2) => ({ source: m.source, vec: em.vectors[i2] })) }))
-                const rc2 = await guard(callCore(cfg, { op: 'race', vecs: e.vectors[0], text: q, want: Number(cfg.injectHeatTop) || 200 }))
+                const rc2 = await guard(callCore(cfg, { op: 'race', vecs: e.vectors[0], text: q, sid: skey, want: Number(cfg.injectHeatTop) || 200 }))
                 if (rc2 && rc2.ok) table = rc2.data.ranked || []
               }
             }
@@ -1039,7 +1039,7 @@ function injectMount(ctx, cfg) {
         // G1 纯 tag 降级：降级表仅供时机②命中补漏判定；入池/加热跳过
         //（热度口径必须可比——自审 §5：不做纯 tag 入池，混着来不可比）
         if (!table.length) {
-          const rcT = await guard(callCore(cfg, { op: 'race', text: q, want: 30 }))
+          const rcT = await guard(callCore(cfg, { op: 'race', text: q, sid: skey, want: 30 }))
           if (rcT && rcT.ok && (rcT.data.ranked || []).length) {
             table = rcT.data.ranked || []
             tagOnly = true

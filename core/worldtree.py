@@ -856,7 +856,11 @@ def _cli():
                 if _v is not None:
                     _cos = max(0.0, min(1.0, float(_q @ _norm(_v))))
                     _sem = max(0.0, min(1.0, (_cos - 0.30) / 0.40))
-            _blood = (_cover(_tgset, _stagset) / len(_stagset)) if _stagset else 0.0
+            # 血缘 B（2026-10-31 修分母 bug）：设计意图=候选tags∩会话tags/候选tags（该候选
+            # 有多少比例的 tag 是本会话产出的=会话亲和度）。原实现误除以 len(_stagset)（整会话
+            # tag 并集，大会话上千）→ B≈0.00x 纯噪声，血缘通道从未生效（E2 BB 实测 15 条同会话
+            # 相关条零提升实证）。同会话候选 tags⊆会话并集 → B≈1；跨会话共享词表 → B=词表重叠率。
+            _blood = (_cover(_tgset, _stagset) / max(1, len(_tgset))) if (_stagset and _tgset) else 0.0
             _total = round(_wS * _sem + _wK * _kw + _wB * _blood, 4)
             if _total > 0:
                 _ranked.append({"source": _src, "ws": _ws, "head": _head,
@@ -997,6 +1001,217 @@ def _cli():
                 out = {"ok": True, "texts": texts}
             except Exception as e:
                 out = {"ok": False, "error": "bili 读失败：" + str(e)[:200]}
+    elif op == "graph_view":
+        # v2 图架构·网络图数据（2026-10-30）：查询/种子来源 → kNN 图（TAU=0.65,E0定案）上
+        # BFS 扩 hops 跳取子图，供前端力导向渲染。图现算不持久化（建图 0.5s，随插入自动更新无失效边）。
+        import numpy as _np
+        _sources = req.get("sources") or []
+        _text = str(req.get("text") or "")
+        _vecs = req.get("vecs")
+        _hops = max(1, min(3, int(req.get("hops") or 2)))
+        _cap = max(10, min(200, int(req.get("cap") or 60)))
+        _knb, _tau = 10, 0.65
+        conn = sqlite3.connect(db)
+        srcs, vecs, heads = [], [], []
+        for s, v, hd in conn.execute(
+                "SELECT e.source, v.vec, e.head FROM entry_vecs v JOIN entries e ON e.source=v.source"):
+            if v is None: continue
+            srcs.append(s); vecs.append(_np.frombuffer(v, dtype=_np.float32)); heads.append(hd or "")
+        conn.close()
+        if not srcs:
+            out = {"ok": False, "error": "库内无 fam 向量"}
+        else:
+            V = _np.stack(vecs); V = V / (_np.linalg.norm(V, axis=1, keepdims=True) + 1e-9)
+            N = len(srcs)
+            seed_ix = []
+            ix_of = {s: i for i, s in enumerate(srcs)}
+            for s in _sources[:16]:
+                if s in ix_of: seed_ix.append(ix_of[s])
+            qsim = None
+            if _text and _vecs:
+                qv = _np.array(_vecs, dtype=_np.float32); qv = qv / (_np.linalg.norm(qv) + 1e-9)
+                qsim = V @ qv
+                for i in _np.argsort(-qsim)[:8]:
+                    if int(i) not in seed_ix: seed_ix.append(int(i))
+            if not seed_ix:
+                out = {"ok": False, "error": "无有效种子（sources 未命中且无查询向量）"}
+            else:
+                nbr = _np.zeros((N, _knb), dtype=_np.int32)
+                wgt = _np.zeros((N, _knb), dtype=_np.float32)
+                B = 512
+                for st in range(0, N, B):
+                    en = min(st + B, N)
+                    S = V[st:en] @ V.T
+                    idx = _np.argpartition(-S, _knb, axis=1)[:, :_knb]
+                    for r in range(en - st):
+                        cols = idx[r]; w = S[r, cols]; o = _np.argsort(-w)
+                        nbr[st + r] = cols[o]; wgt[st + r] = w[o]
+                und = [dict() for _ in range(N)]
+                for i in range(N):
+                    for j, w, kp in zip(nbr[i], wgt[i], (wgt[i] >= _tau).tolist()):
+                        if not kp or j == i: continue
+                        j = int(j)
+                        if w > und[i].get(j, -1): und[i][j] = float(w)
+                        if w > und[j].get(i, -1): und[j][i] = float(w)
+                seen = set(seed_ix); frontier = list(seed_ix); edges = []
+                for _step in range(_hops):
+                    cand = []
+                    for i in frontier:
+                        for j, w in und[i].items():
+                            if j not in seen: cand.append((-w, i, j))
+                    cand.sort()
+                    room = _cap - len(seen)
+                    added = []
+                    for negw, i, j in cand[:max(0, room * 3)]:
+                        if j in seen or len(seen) >= _cap: continue
+                        seen.add(j); added.append(j); edges.append((i, j, -negw))
+                        if len(seen) >= _cap: break
+                    if not added or len(seen) >= _cap: break
+                    frontier = added
+                seed_set = set(seed_ix)
+                for i in seed_ix:
+                    for j, w in und[i].items():
+                        if j in seed_set and i < j: edges.append((i, j, w))
+                order = sorted(seen)
+                pos = {i: k for k, i in enumerate(order)}
+                deg = {i: len(und[i]) for i in order}
+                out = {"ok": True,
+                       "nodes": [{"source": srcs[i], "head": heads[i][:60], "deg": deg[i],
+                                  "seed": i in seed_set,
+                                  "qsim": round(float(qsim[i]), 4) if qsim is not None else None}
+                                 for i in order],
+                       "edges": [[pos[a], pos[b], round(w, 4)] for a, b, w in edges if a in pos and b in pos],
+                       "total": N}
+    elif op == "vec_count":
+        # v0.9.1：dream 缓存失效判据 —— entry_vecs 行数（条目数不变 → 簇划分稳定）
+        conn = sqlite3.connect(db)
+        (n,) = conn.execute("SELECT COUNT(*) FROM entry_vecs").fetchone()
+        conn.close()
+        out = {"ok": True, "count": int(n)}
+    elif op == "dream":
+        # v2 图架构·做梦（E0 移植，2026-10-30）：kNN 图 → 两段式种子（均匀测量+新鲜巩固）
+        # → 贪心+概率步游走 → 盆合并成簇 → 路过计数（activation 做梦侧）+ 死节点候选。
+        # 纯算法层不调 LLM 不写库；簇摘要/死节点三选留给上层管线。
+        import random as _rd
+        import numpy as _np
+        _nd = max(1, min(50, int(req.get("n_dreams") or 10)))
+        _seed_mult = max(1, min(16, int(req.get("seed_mult") or 4)))
+        _tau = float(req.get("tau") or 0.65)
+        _rd.seed(20261030)
+        conn = sqlite3.connect(db)
+        srcs, vecs, heads, times = [], [], [], []
+        for s, v, hd, t in conn.execute(
+                "SELECT e.source, v.vec, e.head, e.grew_at FROM entry_vecs v JOIN entries e ON e.source=v.source"):
+            if v is None: continue
+            srcs.append(s); vecs.append(_np.frombuffer(v, dtype=_np.float32)); heads.append(hd or ""); times.append(t or "")
+        conn.close()
+        if len(srcs) < 50:
+            out = {"ok": False, "error": "成员过少（<50），不值得做梦"}
+        else:
+            V = _np.stack(vecs); V = V / (_np.linalg.norm(V, axis=1, keepdims=True) + 1e-9)
+            N = len(srcs)
+            _knb = 10
+            nbr = _np.zeros((N, _knb), dtype=_np.int32); wgt = _np.zeros((N, _knb), dtype=_np.float32)
+            B = 512
+            for st in range(0, N, B):
+                en = min(st + B, N)
+                S = V[st:en] @ V.T
+                idx = _np.argpartition(-S, _knb, axis=1)[:, :_knb]
+                for r in range(en - st):
+                    cols = idx[r]; w = S[r, cols]; o = _np.argsort(-w)
+                    nbr[st + r] = cols[o]; wgt[st + r] = w[o]
+            und = [dict() for _ in range(N)]
+            for i in range(N):
+                for j, w, kp in zip(nbr[i], wgt[i], (wgt[i] >= _tau).tolist()):
+                    if not kp or j == i: continue
+                    j = int(j)
+                    if w > und[i].get(j, -1): und[i][j] = float(w)
+                    if w > und[j].get(i, -1): und[j][i] = float(w)
+            dens = _np.array([(sum(nb.values()) / len(nb)) if nb else 0.0 for nb in und], dtype=_np.float64)
+            deg = _np.array([len(x) for x in und])
+            iso = [i for i in range(N) if deg[i] == 0]
+            order_time = sorted(range(N), key=lambda i: times[i])
+            fresh = set(order_time[int(N * 0.9):])
+            import math as _m
+            n_seeds = round(_m.sqrt(N) * _seed_mult)
+            visits = _np.zeros(N, dtype=_np.int64)
+            visited_ever = _np.zeros(N, dtype=bool)
+            all_paths = []
+            MAX_STEPS, GREEDY_P = 8, 0.5
+            def _pick(i, greedy):
+                nb = und[i]
+                if not nb: return None
+                if greedy:
+                    better = [(w, j) for j, w in nb.items() if dens[j] > dens[i]]
+                    if not better: return None
+                    better.sort(reverse=True)
+                    return better[0][1]
+                js, ws = zip(*nb.items())
+                wsa = _np.array(ws); pr = wsa / wsa.sum()
+                return int(_rd.choices(js, weights=pr, k=1)[0])
+            for _d in range(_nd):
+                n_fresh = int(n_seeds * 0.3)
+                seeds = [_rd.randrange(N) for _ in range(n_seeds - n_fresh)]
+                pool = list(fresh)
+                seeds += [pool[_rd.randrange(len(pool))] for _ in range(n_fresh)] if pool else []
+                for s in seeds:
+                    path = [s]; cur = s
+                    for _st in range(MAX_STEPS):
+                        nxt = _pick(cur, _rd.random() < GREEDY_P)
+                        if nxt is None: break
+                        path.append(nxt); cur = nxt
+                    for x in path: visits[x] += 1; visited_ever[x] = True
+                    all_paths.append((path, path[-1]))
+            from collections import defaultdict as _dd
+            basins = _dd(set)
+            for p, t in all_paths: basins[t] |= set(p)
+            keys = list(basins.keys()); changed = True
+            while changed:
+                changed = False
+                for a in range(len(keys)):
+                    for b in range(a + 1, len(keys)):
+                        ka, kb = keys[a], keys[b]
+                        if ka not in basins or kb not in basins: continue
+                        A, Bc = basins[ka], basins[kb]
+                        inter = len(A & Bc)
+                        if inter and inter / min(len(A), len(Bc)) > 0.5:
+                            A |= Bc; del basins[kb]; changed = True; break
+                    if changed: break
+            big = sorted(basins.values(), key=len, reverse=True)
+            never = [i for i in range(N) if not visited_ever[i] and deg[i] > 0]
+            def _rep(m):
+                return max(m, key=lambda x: visits[x])
+            # v0.9.1：簇作为浏览分区 —— 前 120 簇带 id/成员，簇间边=跨簇 kNN 边计数
+            TOPC = 120
+            cid = {}
+            clusters_out = []
+            for ci, m in enumerate(big[:TOPC]):
+                r = _rep(m)
+                clusters_out.append({"id": ci, "size": len(m), "rep": srcs[r],
+                                      "repHead": heads[r][:60],
+                                      "visits": int(visits[r]),
+                                      "members": [srcs[x] for x in sorted(m, key=lambda x: -visits[x])][:40]})
+                for x in m: cid[x] = ci
+            links = {}
+            for i2 in range(N):
+                if i2 not in cid: continue
+                for j2 in und[i2]:
+                    if j2 in cid and cid[i2] < cid[j2]:
+                        key2 = (cid[i2], cid[j2])
+                        rec = links.get(key2)
+                        if rec is None: links[key2] = rec = [0, 0.0]
+                        rec[0] += 1; rec[1] += float(und[i2][j2])
+            cluster_links = [[a, b, c, round(s / c, 4)] for (a, b), (c, s) in
+                             sorted(links.items(), key=lambda kv: -kv[1][0])[:180]]
+            out = {"ok": True, "total": N, "n_dreams": _nd, "seedsPerDream": n_seeds,
+                   "clusters": clusters_out,
+                   "clusterLinks": cluster_links,
+                   "nClusters": len(basins),
+                   "visitsTop": [{"source": srcs[i], "visits": int(visits[i]), "head": heads[i][:60]}
+                                 for i in _np.argsort(-visits)[:200] if visits[i] > 0],
+                   "visitedRatio": round(float((visits > 0).mean()), 4),
+                   "dead": {"isolated": len(iso), "zeroVisit": len(never),
+                            "samples": [srcs[i] + "  " + heads[i][:40] for i in (iso[:25] + never[:25])]}}
     else:
         out = {"error": "未知 op：" + str(op)}
     json.dump(out, sys.stdout, ensure_ascii=False)
