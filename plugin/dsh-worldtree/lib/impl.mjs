@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-export const PLUGIN_VERSION = '0.10.2'
+export const PLUGIN_VERSION = '0.10.3'
 export const TOOL_NAME = '_dsh_external_worldtree'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/Feng'
@@ -58,8 +58,12 @@ const DEFAULTS = {
   injectSettleTop: 3,         // 每批结算晋级数
   injectKeepFrac: 0.5,        // 周期末预备池保留比例（按周期平均余弦的相对名次）
   injectMissTop: 3,           // 时机②每轮最多补漏条数
-  injectRefillTop: 6,         // 周期末补回条数上限（2026-10-12：27 条全文污染后定预算制）
-  injectRefillChars: 10000,   // 周期末补回字数预算
+  injectRefillGuardItems: 30, // 周期末补回护栏·条数（0=关=恢复 2026-10-12 无上限裁定）。
+                               // 2026-10-31 生产漏斗实证：bili 大会话周期数月不压缩，reserve 膨胀
+                               // 至 805 条（本周期有热度 747）；boundary 一旦触发 keep50% → ~370 条
+                               // 整头整正文一次性注入≈爆上下文（老系统设计包络 38 条被超 20 倍）。
+                               // 护栏只截断注入，被截断幸存者留预备池下周期再赛，不丢记忆。
+  injectRefillGuardChars: 40000, // 周期末补回护栏·字数（0=关）。与条数护栏 AND，先到先截。
   /** 检查点调度器（2026-10-11）：五档稀释检查点周期触发 */
   ckptEnabled: true,
   ckptPy: 'E:/DSH_data/世界树/core/checkpoint.py',
@@ -351,6 +355,8 @@ function wikiMountPanelRoutes(ctx, cfg) {
                   injectSettleTop: file.injectSettleTop != null ? file.injectSettleTop : DEFAULTS.injectSettleTop,
                   injectKeepFrac: file.injectKeepFrac != null ? file.injectKeepFrac : DEFAULTS.injectKeepFrac,
                   injectMissTop: file.injectMissTop != null ? file.injectMissTop : DEFAULTS.injectMissTop,
+                  injectRefillGuardItems: file.injectRefillGuardItems != null ? file.injectRefillGuardItems : DEFAULTS.injectRefillGuardItems,
+                  injectRefillGuardChars: file.injectRefillGuardChars != null ? file.injectRefillGuardChars : DEFAULTS.injectRefillGuardChars,
                   p3BiliEnabled: file.p3BiliEnabled != null ? file.p3BiliEnabled : DEFAULTS.p3BiliEnabled,
                   p3BiliSummaryDirect: file.p3BiliSummaryDirect != null ? file.p3BiliSummaryDirect : DEFAULTS.p3BiliSummaryDirect,
                   p3BiliDb: file.p3BiliDb || DEFAULTS.p3BiliDb,
@@ -378,6 +384,12 @@ function wikiMountPanelRoutes(ctx, cfg) {
                 if (params.injectKeepFrac !== undefined && params.injectKeepFrac !== '') {
                   const f = Number(params.injectKeepFrac)
                   if (Number.isFinite(f) && f > 0 && f <= 1) patch.injectKeepFrac = f
+                }
+                for (const k of ['injectRefillGuardItems', 'injectRefillGuardChars']) {
+                  if (params[k] !== undefined && params[k] !== '') {
+                    const n = Number(params[k])
+                    if (Number.isFinite(n) && n >= 0) patch[k] = n   // 0=关护栏（允许）
+                  }
                 }
                 if (params.p3BiliEnabled !== undefined && params.p3BiliEnabled !== '') {
                   patch.p3BiliEnabled = (params.p3BiliEnabled === true || params.p3BiliEnabled === 'true')
@@ -931,7 +943,7 @@ function embedRegisterTool(ctx, cfg) {
  *  · 预备池（赛马胜者区，无上限）：每轮累加余弦（周期内不衰减）；赛马=排序，定补位优先级
  *  · 周期末 = 压缩（compaction/end 置位；消息兜底已删——无压缩即无清空，无需补回）：
  *    保留前 keepFrac（按周期平均余弦的相对名次——绝对门槛实测 1256% 灾难，弃用）
- *    → 全部幸存者整头整正文补回上下文 → 幸存者周期热度清零
+ *    → 幸存者整头整正文补回上下文（护栏截断者留池再赛）→ 幸存者周期热度清零
  *  · 时机②（独立触发点，不许与①混）：本轮检索命中 ∩ 预备池 ∩ 本周期没注过 → ≤missTop 条立刻补
  *  · 差一拍：注入面只有 pre-step——压缩后的注入发生在下一拍（登记在案，非 bug）
  * 存储：worldtree/inject/<会话8位>.json 原子写；坏件隔离不静默重置。 */
@@ -1093,7 +1105,7 @@ function injectMount(ctx, cfg) {
       // ⑤ 时机①：周期末（仅压缩置位——2026-10-12 管理员裁定删消息兜底：
       //    没有压缩就没有上下文清空，无需补回；无满足要求的记忆 → 不注入）
       //    退池：保留前 keepFrac（周期平均热度相对名次——绝对门槛实测弃用）
-      //    注入预算制：压缩补位 ≤refillTop 条、字数预算内。未注入的幸存者留预备池。
+      //    注入护栏：条数/字数双闸（injectRefillGuardItems/Chars，0=关）；截断者留预备池再赛。
       if (pool.cycle.boundaryPending && pool.reserve.length) {
         const why = '压缩补位'
         pool.cycle.boundaryPending = false
@@ -1105,22 +1117,37 @@ function injectMount(ctx, cfg) {
         for (const s2 of survivors) s2.cycleHeat = 0
         pool.cycle.index = (pool.cycle.index || 0) + 1
         pool.cycle.rounds = 0
-        // 补回不设上限（管理员 2026-10-12 裁定）：全部幸存者整头整正文补回
-        const toInject = survivors.filter((it) => !entryInContext(it, ctxText))
-        if (!toInject.length) {
+        // 补回不设上限（管理员 2026-10-12 裁定）+ 2026-10-31 护栏：
+        // 护栏按周期热度名次截断注入量（条数/字数双闸，0=关）；被截断幸存者已 cycleHeat=0
+        // 留预备池下周期再赛——不丢记忆、不退出赛马，只是不当轮注入。
+        const toInject0 = survivors.filter((it) => !entryInContext(it, ctxText))
+        if (!toInject0.length) {
           ctx.logger?.info?.(`[dsh-worldtree] 注入池周期补位：幸存者均已在上下文，跳过注入`)
           return decision
         }
-        const bd = await guard(callCore(cfg, { op: 'bodies', sources: toInject.map((x) => x.source) }))
+        const gI = Number(cfg.injectRefillGuardItems) || 0
+        const gC = Number(cfg.injectRefillGuardChars) || 0
+        const toInj = (gI > 0 && toInject0.length > gI) ? toInject0.slice(0, gI) : toInject0
+        const bd = await guard(callCore(cfg, { op: 'bodies', sources: toInj.map((x) => x.source) }))
         const bodies = (bd && bd.ok && bd.data && bd.data.bodies) || {}
         const rows = []
-        for (const it of toInject) {
+        let charUsed = 0
+        for (const it of toInj) {
           const body = bodies[it.source] || ''
           if (body.length < 40) continue
+          if (gC > 0 && rows.length && charUsed + body.length > gC) break
+          charUsed += body.length
           it.injectedCycle = pool.cycle.index
           if (!it.head) it.head = String(body).split('\n')[0].slice(0, 120)
           if (!it.lead) it.lead = String(body).replace(/\s+/g, '').slice(0, 40)
           rows.push(`【${it.source}】\n  周期热度 ${poolMean(it, pool.cycle.rounds).toFixed(3)}｜累计 ${(it.totalHeat || 0).toFixed(2)}\n${body}`)
+        }
+        if (gI > 0 || gC > 0) {
+          const skipped = toInject0.length - rows.length
+          if (skipped > 0) {
+            pool.stats.refillGuarded = (pool.stats.refillGuarded || 0) + skipped
+            ctx.logger?.warn?.(`[dsh-worldtree] 注入池周期补位护栏：待注幸存者 ${toInject0.length} 条，护栏内注入 ${rows.length} 条（条数 ${gI || '∞'}/字数 ${gC || '∞'}，已用 ${charUsed} 字），余 ${skipped} 条留预备池下周期再赛`)
+          }
         }
         if (rows.length) {
           pool.stats.injected += rows.length
