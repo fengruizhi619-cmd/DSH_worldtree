@@ -257,7 +257,7 @@ window.__ModuleLoader__.load({
       '.nao-navBtn.is-on{background:var(--dsw-alias-bg-layer-1,#fff);color:var(--dsw-alias-label-primary,#1b1b1f);font-weight:600;box-shadow:0 0 0 1px var(--dsw-alias-border-l1,rgba(0,0,0,.08))}',
       '.nao-navBtn.is-on svg{opacity:1;color:var(--dsw-alias-brand-primary,#4f6ef7)}',
       /* 主区 */
-      '.nao-main{flex:1;min-width:0;display:flex;flex-direction:column}',
+      '.nao-main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}',
       '.nao-top{display:flex;align-items:center;gap:10px;height:46px;padding:0 14px;border-bottom:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.08));background:var(--dsw-alias-bg-base,#f7f7f8);box-sizing:border-box}',
       '.nao-title{margin:0;font-size:14px;font-weight:600;letter-spacing:.01em}',
       '.nao-count{font-size:12px;color:var(--dsw-alias-label-tertiary,#8a8a94);font-variant-numeric:tabular-nums}',
@@ -268,7 +268,7 @@ window.__ModuleLoader__.load({
       '.nao-btn.primary:hover{filter:brightness(1.06)}',
       '.nao-btn:disabled{opacity:.55;cursor:default}',
       /* 两列 */
-      '.nao-body{flex:1;min-height:0;display:flex}',
+      '.nao-body{flex:1;min-height:0;display:flex;overflow-y:auto;overflow-x:hidden}',
       '.nao-left{flex:1;min-width:0;display:flex;flex-direction:column;padding:12px 12px 0;box-sizing:border-box}',
       '.nao-right{width:300px;flex:0 0 300px;border-left:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.08));display:flex;flex-direction:column;min-height:0;background:var(--dsw-alias-bg-base,#f7f7f8);box-sizing:border-box}',
       /* 工具条 */
