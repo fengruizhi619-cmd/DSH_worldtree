@@ -397,7 +397,20 @@ def sample_sentences(text, k=5):
     return [sents[i] for i in idx]
 
 
+def _norm_embed_url(u):
+    """裸主机名（impl 传 embedUrl='http://127.0.0.1:8082'）→ 补全端点。
+    2026-11-04 断睡根因：impl v1.0.0 起 insert 传裸主机，core 直接当完整 URL 用 → 404，
+    sleep 静默失败（19:42 起生产 197 条未睡眠实证）。"""
+    u = (u or "").strip()
+    if not u:
+        return "http://127.0.0.1:8082/v1/embeddings"
+    if not u.rstrip("/").endswith("/embeddings"):
+        u = u.rstrip("/") + "/v1/embeddings"
+    return u
+
+
 def embed_texts(texts, url="http://127.0.0.1:8082/v1/embeddings", batch=64):
+    url = _norm_embed_url(url)
     """调内置向量服务（dsh-liubian-memory 的 Q4_K_M @8082）。
 
     ⚠ 形状归一（2026-10-10 根因实验）：llama.cpp 计算缓冲池按请求形状保留缓冲且不释放——
