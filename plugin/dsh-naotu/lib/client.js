@@ -765,6 +765,9 @@ window.__ModuleLoader__.load({
       injectSettleTop:   { grp: 'pool', label: '每批晋级预备池数', ph: '3' },
       injectKeepFrac:    { grp: 'pool', label: '周期末保留比例', ph: '0.5', hint: '按周期平均热度的相对名次保留' },
       injectMissTop:     { grp: 'pool', label: '命中补漏上限（条/轮）', ph: '3' },
+      injectQwin:        { grp: 'pool', label: '滑窗直注·窗口（轮）', ph: '3', hint: '最近 N 轮查询向量取均值' },
+      injectQuickLine:   { grp: 'pool', label: '滑窗直注·融合分线', ph: '1.2', hint: '原文口径线；同义改写口径走 S≥0.95 内置判据' },
+      injectQuickTop:    { grp: 'pool', label: '滑窗直注·条数/轮', ph: '2' },
       ckptEnabled:    { grp: 'ckpt', label: '调度开关', bool: true },
       ckptIntervalMs: { grp: 'ckpt', label: '巡检间隔（ms）', ph: '600000' },
     }

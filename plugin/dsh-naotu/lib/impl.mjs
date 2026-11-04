@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-export const PLUGIN_VERSION = '1.1.6'
+export const PLUGIN_VERSION = '1.2.0'
 export const TOOL_NAME = '_dsh_external_dsh_naotu'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/Feng'
@@ -91,6 +91,13 @@ const DEFAULTS = {
                                // 整头整正文一次性注入≈爆上下文（老系统设计包络 38 条被超 20 倍）。
                                // 护栏只截断注入，被截断幸存者留预备池下周期再赛，不丢记忆。
   injectRefillGuardChars: 40000, // 周期末补回护栏·字数（0=关）。与条数护栏 AND，先到先截。
+  // 滑动窗口直注（2026-11-04 管理员 B+C 裁定）：最近 injectQwin 轮查询向量取均值，
+  // 均值 race 融合分 ≥ injectQuickLine 且与单查询 race 共识（双榜 top12）→ 当轮直注
+  // ≤injectQuickTop 条。校准探针（真库 4 组同主题改写均值）：均值榜 ≥1.7 共 0-3 条，
+  // 1.5 线 6-20 条会溢出 → 线定 1.7（=wS+wK 饱和满层，归一化域非裸余弦）。
+  injectQwin: 3,
+  injectQuickLine: 1.7,
+  injectQuickTop: 2,
   /** 检查点调度器（2026-10-11）：五档稀释检查点周期触发 */
   ckptEnabled: true,
   ckptPy: 'E:/DSH_data/世界树/core/checkpoint.py',
@@ -384,6 +391,9 @@ function wikiMountPanelRoutes(ctx, cfg) {
                   injectMissTop: file.injectMissTop != null ? file.injectMissTop : DEFAULTS.injectMissTop,
                   injectRefillGuardItems: file.injectRefillGuardItems != null ? file.injectRefillGuardItems : DEFAULTS.injectRefillGuardItems,
                   injectRefillGuardChars: file.injectRefillGuardChars != null ? file.injectRefillGuardChars : DEFAULTS.injectRefillGuardChars,
+                  injectQwin: file.injectQwin != null ? file.injectQwin : DEFAULTS.injectQwin,
+                  injectQuickLine: file.injectQuickLine != null ? file.injectQuickLine : DEFAULTS.injectQuickLine,
+                  injectQuickTop: file.injectQuickTop != null ? file.injectQuickTop : DEFAULTS.injectQuickTop,
                   p3BiliEnabled: file.p3BiliEnabled != null ? file.p3BiliEnabled : DEFAULTS.p3BiliEnabled,
                   p3BiliSummaryDirect: file.p3BiliSummaryDirect != null ? file.p3BiliSummaryDirect : DEFAULTS.p3BiliSummaryDirect,
                   p3BiliDb: file.p3BiliDb || DEFAULTS.p3BiliDb,
@@ -416,6 +426,16 @@ function wikiMountPanelRoutes(ctx, cfg) {
                   if (params[k] !== undefined && params[k] !== '') {
                     const n = Number(params[k])
                     if (Number.isFinite(n) && n >= 0) patch[k] = n   // 0=关护栏（允许）
+                  }
+                }
+                if (params.injectQwin !== undefined && params.injectQwin !== '') {
+                  const n = Number(params.injectQwin)
+                  if (Number.isFinite(n) && n >= 1 && n <= 6) patch.injectQwin = Math.round(n)
+                }
+                for (const k of ['injectQuickLine', 'injectQuickTop']) {
+                  if (params[k] !== undefined && params[k] !== '') {
+                    const n = Number(params[k])
+                    if (Number.isFinite(n) && n > 0) patch[k] = n
                   }
                 }
                 if (params.p3BiliEnabled !== undefined && params.p3BiliEnabled !== '') {
@@ -1088,9 +1108,11 @@ function injectMount(ctx, cfg) {
       let vectorUp = true
       let tagOnly = false
       let table = []
+      let qvec = null   // 本轮查询向量（提升到外层作用域：滑窗均值块要用，2026-11-04 修 e is not defined）
       if (q && q.length >= (cfg.injectMinChars || 8)) {
         const e = await guard(embed(cfg, [q.slice(0, 2000)]))
         if (e && e.ok) {
+          qvec = e.vectors[0]
           let rc = await guard(callCore(cfg, { op: 'race', vecs: e.vectors[0], text: q, sid: skey, want: Number(cfg.injectHeatTop) || 200 }))
           if (rc && rc.ok) {
             table = rc.data.ranked || []
@@ -1121,8 +1143,32 @@ function injectMount(ctx, cfg) {
       const cosOf = {}
       for (const r of table) cosOf[r.source] = r
 
+      // ①' 滑动窗口查询均值（B+C，2026-11-04）：qwin 存最近 N 轮查询向量，
+      //    q̄ = 均值 → 均值榜 qtable。C：池加热口径改用 q̄ 融合分（均值平滑单轮噪声）；
+      //    B：⑤' 直注 = q̄ 榜 ≥injectQuickLine ∩ 单查询榜 top12 共识 → ≤injectQuickTop 条。
+      let qtable = []
+      const qcosOf = {}
+      if (vectorUp && qvec) {
+        try {
+          const qwinN = Math.max(1, Math.min(6, Number(cfg.injectQwin) || 3))
+          pool.qwin = Array.isArray(pool.qwin) ? pool.qwin : []
+          const trunc = (v) => v.map((x) => Number(x.toFixed(5)))
+          pool.qwin.push({ v: trunc(qvec), t: Date.now() })
+          while (pool.qwin.length > qwinN) pool.qwin.shift()
+          const D = pool.qwin[0].v.length
+          const acc = new Array(D).fill(0)
+          for (const w of pool.qwin) for (let i = 0; i < D; i++) acc[i] += w.v[i]
+          const qbar = acc.map((x) => x / pool.qwin.length)
+          const rcq = await guard(callCore(cfg, { op: 'race', vecs: qbar, text: q, sid: skey, want: Number(cfg.injectHeatTop) || 200 }))
+          if (rcq && rcq.ok) qtable = rcq.data.ranked || []
+          for (const r of qtable) qcosOf[r.source] = r
+        } catch (eq) {
+          ctx.logger?.warn?.(`[dsh-naotu] 滑动窗口均值失败（跳过直注，不影响主流程）：${(eq && eq.message) || eq}`)
+        }
+      }
+
       // ② 入池（打批次；已在两池的不重复入）+ ③ 加热（只及更早批次与预备池）+ ④ 结算最老批
-      //    热度口径 = 三通道归一化总分（2026-10-12 管理员定案）
+      //    热度口径 = 三通道归一化总分（2026-10-12 管理员定案）；2026-11-04 B+C：改用 q̄ 均值分
       if (vectorUp && table.length) {
         pool.batchSeq = (pool.batchSeq || 0) + 1
         const topN = Number(cfg.injectPrefetchTop) || 10
@@ -1134,11 +1180,11 @@ function injectMount(ctx, cfg) {
         }
         for (const it of pool.prefetch) {
           if (it.batch >= pool.batchSeq) continue
-          const c = cosOf[it.source]
+          const c = qcosOf[it.source]
           if (c !== undefined && c.total !== undefined) it.heat = (it.heat || 0) + c.total
         }
         for (const it of pool.reserve) {
-          const c = cosOf[it.source]
+          const c = qcosOf[it.source]
           if (c === undefined || c.total === undefined) continue
           it.cycleHeat = (it.cycleHeat || 0) + c.total
           it.totalHeat = (it.totalHeat || 0) + c.total
@@ -1216,6 +1262,53 @@ function injectMount(ctx, cfg) {
                            source: { kind: 'plugin:dsh-naotu', form: 'pool-refill' } }
           ctx.logger?.info?.(`[dsh-naotu] 注入池周期补位：${rows.length} 条（${why}）`)
           return { kind: 'enter', messages: [...(decision.messages || []), recall] }
+        }
+      }
+
+      // ⑤' 时机③（B，2026-11-04）：滑动窗口均值直注——q̄ 融合分 ≥ injectQuickLine
+      //    ∩ 单查询榜 top12 共识 ∩ 上下文短锚判"没有" ∩ 未注入判定（跨周期：
+      //    注过就不再直注，靠 pool.quick 注记）→ ≤injectQuickTop 条。
+      //    这就是"不用等三轮再注入"：均值 2-3 轮自然收敛即触发，无批次延迟。
+      if (qtable.length && vectorUp) {
+        const line = Number(cfg.injectQuickLine) || 1.2
+        if (process.env.NAOTU_QUICK_DBG) ctx.logger?.warn?.(`[dsh-naotu][quick调试] qtable=${qtable.length} top1=${qtable[0] && qtable[0].source}:${qtable[0] && qtable[0].total} line=${line} cons=${table.slice(0, 12).map((r) => r.source).join(',')}`)
+        const topN = Number(cfg.injectQuickTop) || 2
+        const cons = new Set(table.slice(0, 12).map((r) => r.source))
+        pool.quick = Array.isArray(pool.quick) ? pool.quick : []
+        // 触发双口径（2026-11-04 场景⑤实测裁定）：原文提问 → K 满层 → 融合分 ≥line（1.2 即近满分带）；
+        // 同义改写 → K=0 → 纯语义近满分（S≥0.95 且 total≥1.0）。任一命中即候选。
+        const hot = (r) => (r.total >= line) || ((r.S || 0) >= 0.95 && (r.total || 0) >= 1.0)
+        const cand = qtable
+          .filter((r) => hot(r) && cons.has(r.source) && !entryInContext(r, ctxText)
+                          && !pool.quick.includes(r.source))
+          .slice(0, topN)
+        if (cand.length) {
+          const bd = await guard(callCore(cfg, { op: 'bodies', sources: cand.map((x) => x.source) }))
+          const bodies = (bd && bd.ok && bd.data && bd.data.bodies) || {}
+          const rows = []
+          for (const r of cand) {
+            const body = bodies[r.source] || ''
+            if (body.length < 40) continue
+            pool.quick.push(r.source)
+            if (pool.quick.length > 120) pool.quick.splice(0, pool.quick.length - 120)
+            const head0 = String(body).split('\n')[0].slice(0, 120)
+            const lead0 = String(body).replace(/\s+/g, '').slice(0, 40)
+            rows.push(`【${r.source}】\n  滑窗热度 ${r.total.toFixed(3)}（${pool.qwin.length} 轮均值）\n${body}`)
+            // 直注条目若在池里，同步记 head/lead 供防重复短锚
+            for (const tgt of [pool.reserve.find((x) => x.source === r.source), pool.prefetch.find((x) => x.source === r.source)]) {
+              if (tgt && !tgt.head) { tgt.head = head0; tgt.lead = lead0 }
+            }
+          }
+          if (rows.length) {
+            pool.stats.quickIn = (pool.stats.quickIn || 0) + rows.length
+            poolSaveSync(pool)
+            const text = '<worldtree from="注入池" why="滑窗直注" hits="' + rows.length + '">\n' + rows.join('\n\n')
+              + '\n\n【注入池】以上是最近几轮提问的滑动均值检索出的高分记忆（多轮共同指向同一主题），直接当作既有知识使用。</worldtree>'
+            const recall = { id: randomUUID(), role: 'user', content: [{ type: 'text', text }],
+                             source: { kind: 'plugin:dsh-naotu', form: 'quick' } }
+            ctx.logger?.info?.(`[dsh-naotu] 注入池滑窗直注：${rows.length} 条（均值榜线 ${line}，窗口 ${pool.qwin.length} 轮）`)
+            return { kind: 'enter', messages: [...(decision.messages || []), recall] }
+          }
         }
       }
 
