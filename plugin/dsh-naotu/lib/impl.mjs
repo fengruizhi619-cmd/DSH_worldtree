@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-export const PLUGIN_VERSION = '1.0.0'
+export const PLUGIN_VERSION = '1.0.1'
 export const TOOL_NAME = '_dsh_external_dsh_naotu'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/Feng'
@@ -574,7 +574,7 @@ const OUT = {
 function registerWorldtreeTool(ctx, cfg) {
   ctx.effect(() => ctx.tools.register(defineTool({
     name: TOOL_NAME,
-    description: '脑图（原脑图 · 原世界树系统）—— 向量主题树：每篇日记/便签按句采 5 样编码，'
+    description: '脑图（原世界树系统）—— 向量主题树：每篇日记/便签按句采 5 样编码，'
       + '按「第 k 层需 ≥k 个向量命中」自动长成主题树；每篇有唯一主题地址与生长记录。'
       + '数据：日记 10,337 + wiki 全量（slug 保留）。'
       + 'action: status 总览｜search 关键词搜成员｜locate 给文本定位主题地址｜'

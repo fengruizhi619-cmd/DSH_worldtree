@@ -1027,7 +1027,7 @@ def _cli():
         # ── 脑图 v1 附加层（2026-11-04）：R 指纹区通道 → S_mm 句级精修 → 下滑附加召回 ──
         # 指针：mm 表空（未回填/未睡眠）时整层跳过，race 行为=旧版逐位一致。
         try:
-            _wR = float(req.get("wR") or 0.3)
+            _wR = float(req.get("wR") or 0.0)
             _rmode = str(req.get("regionMode") or "soft")
             _descent = req.get("descentOn", True) is not False
             _c2 = sqlite3.connect(db)
