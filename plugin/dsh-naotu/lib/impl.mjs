@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-export const PLUGIN_VERSION = '1.1.2'
+export const PLUGIN_VERSION = '1.1.3'
 export const TOOL_NAME = '_dsh_external_dsh_naotu'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/Feng'
@@ -211,7 +211,7 @@ async function embed(cfg, texts) {
 export const PANEL_ID = 'liubianwiki'
 export const ROUTE_PATH = '/api/liubian-wiki'
 export const CONTRACT_VERSION = '1.0'
-const WIKI_OPS = ['health', 'tree', 'get', 'find', 'diary_tree', 'diary_list', 'diary_get', 'uploads', 'wt_tree', 'tag_table', 'tag_filter', 'entry_tags', 'entry_get', 'graph_view', 'dream', 'insert', 'p3_status', 'settings_get', 'settings_save', 'brain', 'recent', 'stats', 'mm_stats', 'mm_backfill_gap']
+const WIKI_OPS = ['health', 'tree', 'get', 'find', 'diary_tree', 'diary_list', 'diary_get', 'uploads', 'wt_tree', 'tag_table', 'tag_filter', 'entry_tags', 'entry_get', 'graph_view', 'dream', 'insert', 'p3_status', 'settings_get', 'settings_save', 'brain', 'recent', 'stats', 'mm_stats', 'mm_backfill_gap', 'race']
 
 function wikiSendJson(res, status, obj) {
   try {
@@ -449,6 +449,19 @@ function wikiMountPanelRoutes(ctx, cfg) {
                 if (params.source) req3.source = String(params.source)
                 if (params.limit) req3.limit = Number(params.limit)
                 const r = await callCore(cfg, { op, ...req3 })
+                wikiSendJson(res, r.ok ? 200 : 503, r.ok ? r.data : { ok: false, error: r.error })
+                return
+              }
+              if (op === 'race') {
+                // 检索：查询文本服务端嵌入后交树核三通道打分（S 语义 + K 词面 + B 血缘）
+                const text = String(params.text || '').trim()
+                if (!text) { wikiSendJson(res, 400, { ok: false, error: 'op=race 需要 text' }); return }
+                const rq = { op: 'race', text, want: Math.max(5, Math.min(200, Number(params.want) || 20)) }
+                const sid = String(params.sid || '').trim()
+                if (sid) rq.sid = sid
+                const e = await embed(cfg, [text])
+                if (e.ok) rq.vecs = e.vectors[0]          // 嵌入失败 → 纯 K/B 降级（树核 vecs 缺席 S=0）
+                const r = await callCore(cfg, rq)
                 wikiSendJson(res, r.ok ? 200 : 503, r.ok ? r.data : { ok: false, error: r.error })
                 return
               }

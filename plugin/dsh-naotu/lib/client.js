@@ -242,89 +242,83 @@ window.__ModuleLoader__.load({
       '.lbm-chooseBtn{display:block;width:100%;text-align:left;background:var(--dsw-alias-bg-layer-1);border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-md,8px);cursor:pointer;font:inherit;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary);padding:7px 10px;margin-bottom:6px}',
       '.lbm-chooseBtn:hover{background:var(--dsw-alias-interactive-bg-hover)}',
     ]
-    /* ══ 脑图 · 样式（原生 DSH 形态：实底面板 · 1px 分界线 · 令牌色 · 无辉光）══════
-       令牌全部走 var(--dsw-alias-*, 回退)，圆角走 var(--dsw-radius-*, 回退)。
-       设计原则：① 内容区一律实底，不叠壁纸 ② 层次靠 bg-base/layer-1/layer-2 + 分界线
-       ③ 字号 13/12/11，主文字 label-primary、次 label-secondary、弱 label-tertiary
-       ④ 品牌紫只用于选中态/进度条/命中节点，不做大面积填充 */
+    /* ══ 脑图 · 样式（v1.1.4 按 _oil-ui 真截图迭代：左导航横排 / 画布圆填充 / 右栏综合分）
+       设计原则：① 内容区一律实底，不叠壁纸 ② 层次靠 bg-base/layer-1/layer-2 + 1px 分界线
+       ③ 字号 13/12/11 ④ 品牌紫只用于选中态/命中区/进度条 ⑤ 圆角走 --dsw-radius-*
+       ⑥ 全部颜色 var(--dsw-alias-*, 回退) —— 深浅主题自动跟随宿主 */
     var NAO_CSS = [
-      /* 壳 */
-      '.nao-app{display:flex;flex:1 1 auto;height:100%;min-height:0;width:100%;box-sizing:border-box;overflow:hidden;background:var(--dsw-alias-bg-base,#101014);color:var(--dsw-alias-label-primary,#e8e8ef);font-size:13px;line-height:1.5}',
-      /* 左导航 */
-      '.nao-rail{width:68px;flex:none;display:flex;flex-direction:column;gap:2px;padding:8px 6px;box-sizing:border-box;background:var(--dsw-alias-bg-layer-2,#17171c);border-right:1px solid var(--dsw-alias-separator,rgba(127,127,127,.16))}',
-      '.nao-railBtn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 2px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-secondary,#a0a0ae);font-size:11px;cursor:pointer;font-family:inherit}',
-      '.nao-railBtn:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.10));color:var(--dsw-alias-label-primary,#e8e8ef)}',
-      '.nao-railBtn.is-on{background:var(--dsw-alias-interactive-bg-active,rgba(127,127,127,.16));color:var(--dsw-alias-label-primary,#e8e8ef)}',
-      '.nao-railBtn.is-on svg{color:var(--dsw-alias-brand-primary,#7c5cff)}',
+      '.nao-app{display:flex;flex:1 1 auto;height:100%;min-height:0;width:100%;box-sizing:border-box;overflow:hidden;background:var(--dsw-alias-bg-base,#f7f7f8);color:var(--dsw-alias-label-primary,#1b1b1f);font-size:13px;line-height:1.5}',
+      /* 左导航（DSH 侧栏形态：图标 + 文字横排，行高 32） */
+      '.nao-nav{width:148px;flex:0 0 148px;border-right:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.08));background:var(--dsw-alias-bg-base,#f7f7f8);padding:8px 6px;display:flex;flex-direction:column;gap:2px;box-sizing:border-box}',
+      '.nao-navTitle{font-size:11px;font-weight:600;color:var(--dsw-alias-label-tertiary,#8a8a94);letter-spacing:.06em;padding:6px 8px 4px}',
+      '.nao-navBtn{display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary,#5c5c66);font:inherit;font-size:13px;cursor:pointer;text-align:left}',
+      '.nao-navBtn svg{flex:0 0 16px;opacity:.75}',
+      '.nao-navBtn:hover{background:var(--dsw-alias-bg-layer-2,#f2f2f4);color:var(--dsw-alias-label-primary,#1b1b1f)}',
+      '.nao-navBtn.is-on{background:var(--dsw-alias-bg-layer-1,#fff);color:var(--dsw-alias-label-primary,#1b1b1f);font-weight:600;box-shadow:0 0 0 1px var(--dsw-alias-border-l1,rgba(0,0,0,.08))}',
+      '.nao-navBtn.is-on svg{opacity:1;color:var(--dsw-alias-brand-primary,#4f6ef7)}',
       /* 主区 */
-      '.nao-main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--dsw-alias-bg-base,#101014)}',
-      '.nao-top{height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 14px;box-sizing:border-box;border-bottom:1px solid var(--dsw-alias-separator,rgba(127,127,127,.16))}',
-      '.nao-title{font-size:14px;font-weight:600;color:var(--dsw-alias-label-primary,#e8e8ef)}',
+      '.nao-main{flex:1;min-width:0;display:flex;flex-direction:column}',
+      '.nao-top{display:flex;align-items:center;gap:10px;height:46px;padding:0 14px;border-bottom:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.08));background:var(--dsw-alias-bg-base,#f7f7f8);box-sizing:border-box}',
+      '.nao-title{margin:0;font-size:14px;font-weight:600;letter-spacing:.01em}',
+      '.nao-count{font-size:12px;color:var(--dsw-alias-label-tertiary,#8a8a94);font-variant-numeric:tabular-nums}',
       '.nao-spacer{flex:1}',
-      '.nao-count{font-size:12px;color:var(--dsw-alias-label-tertiary,#7d7d8a);font-variant-numeric:tabular-nums}',
-      '.nao-mini{height:26px;padding:0 10px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.22));border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary,#a0a0ae);font-size:12px;cursor:pointer;font-family:inherit}',
-      '.nao-mini:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.10));color:var(--dsw-alias-label-primary,#e8e8ef)}',
+      '.nao-btn{height:28px;padding:0 10px;border:1px solid var(--dsw-alias-border-l2,rgba(0,0,0,.14));border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-1,#fff);color:var(--dsw-alias-label-secondary,#5c5c66);font:inherit;font-size:12px;cursor:pointer}',
+      '.nao-btn:hover{color:var(--dsw-alias-label-primary,#1b1b1f);border-color:var(--dsw-alias-label-tertiary,#8a8a94)}',
+      '.nao-btn.primary{background:var(--dsw-alias-brand-primary,#4f6ef7);border-color:var(--dsw-alias-brand-primary,#4f6ef7);color:#fff}',
+      '.nao-btn.primary:hover{filter:brightness(1.06)}',
+      '.nao-btn:disabled{opacity:.55;cursor:default}',
+      /* 两列 */
       '.nao-body{flex:1;min-height:0;display:flex}',
-      /* 脑图视图：工具条 + 画布卡 + 右侧栏 */
-      '.nao-atlas{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}',
-      '.nao-toolbar{flex:none;display:flex;gap:8px;align-items:center;padding:10px 14px}',
-      '.nao-search{flex:1;height:32px;padding:0 10px;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.22));border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-2,#17171c);color:var(--dsw-alias-label-primary,#e8e8ef);font-size:13px;font-family:inherit;outline:none}',
-      '.nao-search::placeholder{color:var(--dsw-alias-label-dimmed,#6b6b78)}',
-      '.nao-search:focus{border-color:var(--dsw-alias-brand-primary,#7c5cff)}',
-      '.nao-go{height:32px;padding:0 14px;border:0;border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-button-primary-fill,var(--dsw-alias-brand-primary,#7c5cff));color:var(--dsw-alias-label-primary-foreground,#fff);font-size:13px;cursor:pointer;font-family:inherit}',
-      '.nao-go:hover{background:var(--dsw-alias-button-primary-hover,#6b4ff0)}',
-      '.nao-go[disabled]{opacity:.55;cursor:default}',
-      '.nao-clear{height:32px;padding:0 10px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.22));border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary,#a0a0ae);font-size:12px;cursor:pointer;font-family:inherit}',
-      '.nao-clear:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.10))}',
-      '.nao-canvasCard{position:relative;flex:1;min-height:240px;margin:0 14px 8px;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.22));border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-layer-1,#141419);overflow:hidden}',
-      '.nao-mapH{position:absolute;inset:0}',
-      '.nao-map{width:100%;height:100%;display:block;cursor:grab}',
-      '.nao-map:active{cursor:grabbing}',
-      '.nao-tip{position:absolute;pointer-events:none;max-width:280px;padding:6px 8px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.22));border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-3,#1e1e24);color:var(--dsw-alias-label-primary,#e8e8ef);font-size:12px;line-height:1.45;box-shadow:0 4px 14px rgba(0,0,0,.35);z-index:5}',
-      '.nao-foot{flex:none;display:flex;align-items:center;gap:8px;padding:0 14px 10px;font-size:11px;color:var(--dsw-alias-label-tertiary,#7d7d8a)}',
-      '.nao-footR{margin-left:auto;display:flex;gap:6px}',
-      /* 右侧列 */
-      '.nao-side{width:320px;flex:none;display:flex;flex-direction:column;min-height:0;background:var(--dsw-alias-bg-base,#101014);border-left:1px solid var(--dsw-alias-separator,rgba(127,127,127,.16))}',
-      '.nao-sideHead{flex:none;display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;box-sizing:border-box;border-bottom:1px solid var(--dsw-alias-separator,rgba(127,127,127,.16));font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary,#e8e8ef);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.nao-sideHead .nao-mini{margin-left:auto}',
-      '.nao-sideScroll{flex:1;min-height:0;overflow:auto;padding:8px}',
-      '.nao-hit{display:block;width:100%;box-sizing:border-box;text-align:left;padding:8px;margin:0 0 6px;border:1px solid transparent;border-radius:var(--dsw-radius-md,8px);background:transparent;color:inherit;cursor:pointer;font-family:inherit}',
-      '.nao-hit:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.10));border-color:var(--dsw-alias-border-l2,rgba(127,127,127,.22))}',
-      '.nao-hitHead{font-size:13px;color:var(--dsw-alias-label-primary,#e8e8ef);line-height:1.4;margin-bottom:5px}',
-      '.nao-hitMeta{font-size:11px;color:var(--dsw-alias-label-tertiary,#7d7d8a);margin-top:4px;font-variant-numeric:tabular-nums}',
-      '.nao-bars{display:flex;gap:8px}',
-      '.nao-bar{flex:1;display:flex;align-items:center;gap:4px;font-size:10px;color:var(--dsw-alias-label-tertiary,#7d7d8a)}',
-      '.nao-barL{width:8px;flex:none;text-align:center}',
-      '.nao-bar i{flex:1;height:3px;border-radius:2px;background:var(--dsw-alias-border-l2,rgba(127,127,127,.22));position:relative;overflow:hidden;display:block}',
-      '.nao-bar b{display:block;height:100%;border-radius:2px;background:var(--dsw-alias-brand-primary,#7c5cff)}',
-      /* 区详情 / 条目详情 */
-      '.nao-rep{padding:10px 12px 4px;font-size:13px;color:var(--dsw-alias-label-primary,#e8e8ef);line-height:1.55}',
-      '.nao-evRow{display:block;width:100%;box-sizing:border-box;text-align:left;padding:6px 8px;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary,#a0a0ae);font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.nao-evRow:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.10));color:var(--dsw-alias-label-primary,#e8e8ef)}',
-      '.nao-detail{width:360px;flex:none;display:flex;flex-direction:column;min-height:0;background:var(--dsw-alias-bg-base,#101014);border-left:1px solid var(--dsw-alias-separator,rgba(127,127,127,.16))}',
-      '.nao-detailHead{padding:10px 12px 6px;font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary,#e8e8ef);line-height:1.45}',
-      '.nao-detailBody{flex:1;min-height:0;overflow:auto;padding:0 12px 16px;font-size:13px;line-height:1.6;color:var(--dsw-alias-label-primary,#e8e8ef)}',
+      '.nao-left{flex:1;min-width:0;display:flex;flex-direction:column;padding:12px 12px 0;box-sizing:border-box}',
+      '.nao-right{width:300px;flex:0 0 300px;border-left:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.08));display:flex;flex-direction:column;min-height:0;background:var(--dsw-alias-bg-base,#f7f7f8);box-sizing:border-box}',
+      /* 工具条 */
+      '.nao-tool{display:flex;gap:8px;align-items:center;margin-bottom:10px}',
+      '.nao-input{flex:1;height:34px;padding:0 12px;border:1px solid var(--dsw-alias-border-l2,rgba(0,0,0,.14));border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-1,#fff);font:inherit;font-size:13px;color:var(--dsw-alias-label-primary,#1b1b1f);outline:none;box-sizing:border-box}',
+      '.nao-input:focus{border-color:var(--dsw-alias-brand-primary,#4f6ef7);box-shadow:0 0 0 3px rgba(79,110,247,.12)}',
+      '.nao-input::placeholder{color:var(--dsw-alias-label-tertiary,#8a8a94)}',
+      /* 画布卡 */
+      '.nao-stage{position:relative;flex:1;min-height:0;border:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.08));border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-layer-1,#fff);overflow:hidden}',
+      '.nao-map{display:block;width:100%;height:100%}',
+      '.nao-tip{position:absolute;z-index:3;max-width:260px;padding:6px 8px;border:1px solid var(--dsw-alias-border-l2,rgba(0,0,0,.14));border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-1,#fff);color:var(--dsw-alias-label-secondary,#5c5c66);font-size:11px;line-height:1.45;box-shadow:0 4px 14px rgba(0,0,0,.08);pointer-events:none}',
+      '.nao-legend{position:absolute;left:12px;bottom:10px;display:flex;gap:12px;font-size:11px;color:var(--dsw-alias-label-tertiary,#8a8a94);pointer-events:none}',
+      '.nao-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:-1px}',
+      /* 右列 */
+      '.nao-sideHead{display:flex;align-items:center;gap:8px;height:40px;padding:0 12px;border-bottom:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.08));font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary,#5c5c66);box-sizing:border-box}',
+      '.nao-sideScroll{flex:1;overflow:auto;padding:6px}',
+      '.nao-hit{display:block;width:100%;text-align:left;border:0;background:transparent;border-radius:var(--dsw-radius-md,8px);padding:8px 9px;cursor:pointer;font:inherit;box-sizing:border-box}',
+      '.nao-hit:hover{background:var(--dsw-alias-bg-layer-2,#f2f2f4)}',
+      '.nao-hit.is-on{background:rgba(79,110,247,.10)}',
+      '.nao-hitT{font-size:13px;line-height:1.45;color:var(--dsw-alias-label-primary,#1b1b1f);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}',
+      '.nao-hitM{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:11px;color:var(--dsw-alias-label-tertiary,#8a8a94);font-variant-numeric:tabular-nums}',
+      '.nao-bar{flex:1;height:3px;border-radius:2px;background:var(--dsw-alias-bg-layer-3,#e9e9ee);overflow:hidden}',
+      '.nao-bar i{display:block;height:100%;background:var(--dsw-alias-brand-primary,#4f6ef7);border-radius:2px}',
+      '.nao-sku{display:flex;gap:8px;color:var(--dsw-alias-label-secondary,#5c5c66)}',
+      '.nao-sku b{font-weight:600;color:var(--dsw-alias-label-primary,#1b1b1f)}',
+      '.nao-tag{display:inline-flex;align-items:center;height:18px;line-height:18px;padding:0 6px;border-radius:4px;background:var(--dsw-alias-bg-layer-2,#f2f2f4);color:var(--dsw-alias-label-tertiary,#8a8a94);font-size:11px;white-space:nowrap}',
+      /* 详情 */
+      '.nao-detail{flex:1;min-height:0;display:flex;flex-direction:column}',
+      '.nao-detailBody{flex:1;overflow:auto;padding:12px 14px;font-size:13px;line-height:1.7;color:var(--dsw-alias-label-secondary,#5c5c66)}',
+      '.nao-rep{font-size:13px;line-height:1.6;color:var(--dsw-alias-label-primary,#1b1b1f);padding:10px 12px;margin:10px 12px 4px;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.08))}',
+      '.nao-evRow{display:block;width:calc(100% - 24px);margin:0 12px 6px;text-align:left;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;padding:7px 8px;font:inherit;font-size:12px;color:var(--dsw-alias-label-secondary,#5c5c66);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.nao-evRow:hover{background:var(--dsw-alias-bg-layer-2,#f2f2f4);color:var(--dsw-alias-label-primary,#1b1b1f)}',
+      '.nao-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;height:100%;color:var(--dsw-alias-label-tertiary,#8a8a94);font-size:12px}',
       /* 睡眠视图 */
-      '.nao-sleep{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0;overflow:auto;padding:14px}',
-      '.nao-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;flex:none}',
-      '.nao-stat{padding:12px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.22));border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-layer-1,#141419)}',
-      '.nao-statV{font-size:20px;font-weight:600;color:var(--dsw-alias-label-primary,#e8e8ef);font-variant-numeric:tabular-nums;line-height:1.2}',
-      '.nao-statL{margin-top:4px;font-size:11px;color:var(--dsw-alias-label-tertiary,#7d7d8a)}',
-      '.nao-stream{margin-top:12px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.22));border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-layer-1,#141419);overflow:hidden}',
-      '.nao-srow{display:flex;gap:12px;padding:10px 12px;border-bottom:1px solid var(--dsw-alias-separator,rgba(127,127,127,.16))}',
-      '.nao-srow:last-child{border-bottom:0}',
-      '.nao-stime{flex:none;width:86px;font-size:11px;color:var(--dsw-alias-label-tertiary,#7d7d8a);font-variant-numeric:tabular-nums;padding-top:2px}',
+      '.nao-sleep{flex:1;min-height:0;overflow:auto;padding:14px;box-sizing:border-box}',
+      '.nao-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}',
+      '.nao-stat{border:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.08));border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-layer-1,#fff);padding:12px 14px}',
+      '.nao-statV{display:block;font-size:22px;font-weight:600;letter-spacing:-.01em;color:var(--dsw-alias-label-primary,#1b1b1f);font-variant-numeric:tabular-nums}',
+      '.nao-statL{font-size:11px;color:var(--dsw-alias-label-tertiary,#8a8a94)}',
+      '.nao-table{border:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.08));border-radius:var(--dsw-radius-lg,12px);overflow:hidden;background:var(--dsw-alias-bg-layer-1,#fff)}',
+      '.nao-srow{display:flex;gap:12px;align-items:flex-start;padding:10px 14px;border-top:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.08));font-size:13px}',
+      '.nao-srow:first-child{border-top:0}',
+      '.nao-stime{flex:0 0 74px;font-size:11px;color:var(--dsw-alias-label-tertiary,#8a8a94);padding-top:2px;font-variant-numeric:tabular-nums}',
       '.nao-smain{flex:1;min-width:0}',
-      '.nao-shead{font-size:13px;color:var(--dsw-alias-label-primary,#e8e8ef);line-height:1.45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.nao-smeta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:5px}',
-      '.nao-chip{display:inline-flex;align-items:center;height:18px;padding:0 6px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.22));border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-2,#17171c);color:var(--dsw-alias-label-secondary,#a0a0ae);font-size:11px}',
-      '.nao-chip.is-warn{border-color:var(--dsw-alias-state-error-primary,rgba(240,90,90,.5));color:var(--dsw-alias-state-error-primary,#f05a5a)}',
-      '.nao-tag{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-3,#1e1e24);color:var(--dsw-alias-label-tertiary,#7d7d8a);font-size:11px}',
-      /* 通用 */
-      '.nao-dim{color:var(--dsw-alias-label-tertiary,#7d7d8a);font-size:12px}',
+      '.nao-shead{color:var(--dsw-alias-label-primary,#1b1b1f);line-height:1.45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.nao-smeta{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap}',
+      '.nao-dim{color:var(--dsw-alias-label-tertiary,#8a8a94)}',
       '.nao-pad{padding:10px 12px}',
-      '.nao-err{margin:8px 12px;padding:8px 10px;border:1px solid var(--dsw-alias-state-error-primary,rgba(240,90,90,.5));border-radius:var(--dsw-radius-sm,6px);background:rgba(240,90,90,.08);color:var(--dsw-alias-state-error-primary,#f05a5a);font-size:12px;line-height:1.5;word-break:break-word}',
-    ]
+      '.nao-err{margin:8px 12px;padding:8px 10px;border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-2,#f2f2f4);color:var(--dsw-alias-label-secondary,#5c5c66);font-size:12px;line-height:1.5}',
+    ];
 
     /** 检索「范围」→ 服务端过滤参数（纯函数，便于桩测：这是"排除在哪一层生效"的唯一定义处） */
     function scopeParams(scope) {
@@ -848,313 +842,232 @@ window.__ModuleLoader__.load({
       return fetchJson(s)
     }
 
-    /* 读宿主主题令牌（画布内需要具体色值，不能直接用 var()）*/
-    function naoToken(name, fb) {
-      try {
-        var v = getComputedStyle(document.documentElement).getPropertyValue(name)
-        v = (v || '').trim()
-        return v || fb
-      } catch (_) { return fb }
-    }
-
-    /* ── 错误边界：渲染抛错时显示原因而不是整块空白 ─────────────────────────── */
-    function PanelBoundary(props) {
-      var st = React.useState(null)
-      var err = st[0]
-      if (err) {
-        return h('div', { className: 'nao-err' }, '面板渲染失败：' + String((err && err.message) || err))
-      }
-      return props.children
-    }
-
-    /* ══ 脑区地形图（canvas，零 React 状态：布局/相机/悬停全部走 ref + 手动重绘）══
-       历史 bug（v1.1.0）：曾用 useState 存 cam，宿主渲染器下该状态槽为 null →
-       首帧读 ui.cam 抛 TypeError、整块空白。改为纯 ref 后不依赖任何状态槽。
+    /* ══ 脑区地形图：圆填充（circle packing）════════════════════════════════
+       为什么不是力导向：140 个区力导向会互相重叠成一团泡泡，尺寸也不代表任何东西。
+       圆填充 = 不重叠 + 面积语义（元记忆数）+ 标签可读，命中时整块点亮。
        数据：op=brain → {ids, regions:{id:{size,rep,events,nEvents}}, links:[[a,b,w]]} */
-    function hash01(str) {
-      var x = 2166136261
-      for (var i = 0; i < str.length; i++) { x ^= str.charCodeAt(i); x = Math.imul(x, 16777619) }
-      return ((x >>> 0) % 1000) / 1000
+    function naoHash(x) {
+      var h = 2166136261
+      for (var i = 0; i < x.length; i++) { h ^= x.charCodeAt(i); h = Math.imul(h, 16777619) }
+      return ((h >>> 0) % 10000) / 10000
     }
+    function naoSize(r) { return Math.max(1, Number((r && r.size) || 1)) }
 
     function BrainMap(props) {
       var canvasR = React.useRef(null)
+      var wrapR = React.useRef(null)
       var tipR = React.useRef(null)
-      var posR = React.useRef(null)
-      var camR = React.useRef({ x: 0, y: 0, k: 1 })
+      var posR = React.useRef(null)      // id → {x,y,r}
       var hoverR = React.useRef(null)
-      var dragR = React.useRef(null)
       var dataR = React.useRef(null)
       var propsR = React.useRef(props)
       propsR.current = props
-      dataR.current = props && props.data
+
+      function token(name, fb) {
+        try {
+          var v = getComputedStyle(document.documentElement).getPropertyValue(name)
+          return (v && v.trim()) || fb
+        } catch (e) { return fb }
+      }
+
+      // 圆填充：按 size 降序依次放到螺旋空位上，碰撞即退；最后归一化到画布
+      function layout(data, W, H) {
+        var ids = (data.ids || []).slice()
+        ids.sort(function (a, b) { return naoSize(data.regions[b]) - naoSize(data.regions[a]) })
+        var first = ids[0]
+        var mx = Math.sqrt(naoSize(data.regions[first])) || 1
+        var rMax = Math.min(W, H) * 0.175, rMin = 5
+        var placed = []
+        ids.forEach(function (id) {
+          var r = Math.max(rMin, rMax * Math.sqrt(naoSize(data.regions[id])) / mx)
+          var x = 0, y = 0, ok = false, t = 0
+          while (!ok && t < 4000) {
+            var ang = t * 0.5, rr = 3 + t * 0.45
+            x = Math.cos(ang) * rr; y = Math.sin(ang) * rr; ok = true
+            for (var k = 0; k < placed.length; k++) {
+              var o = placed[k], dx = x - o.x, dy = y - o.y
+              if (dx * dx + dy * dy < (r + o.r + 2) * (r + o.r + 2)) { ok = false; break }
+            }
+            t++
+          }
+          placed.push({ id: id, x: x, y: y, r: r })
+        })
+        var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9
+        placed.forEach(function (p) {
+          minX = Math.min(minX, p.x - p.r); maxX = Math.max(maxX, p.x + p.r)
+          minY = Math.min(minY, p.y - p.r); maxY = Math.max(maxY, p.y + p.r)
+        })
+        var s = Math.min((W - 40) / Math.max(1, maxX - minX), (H - 40) / Math.max(1, maxY - minY))
+        var map = {}
+        placed.forEach(function (p) {
+          p.x = (p.x - (minX + maxX) / 2) * s + W / 2
+          p.y = (p.y - (minY + maxY) / 2) * s + H / 2
+          p.r = p.r * s
+          map[p.id] = p
+        })
+        return map
+      }
 
       function draw() {
-        var canvas = canvasR.current
-        if (!canvas) return
-        var ctx = canvas.getContext && canvas.getContext('2d')
+        var cv = canvasR.current
+        var data = dataR.current
+        var P = propsR.current || {}
+        if (!cv || !cv.getContext) return
+        var ctx = cv.getContext('2d')
         if (!ctx) return
-        var p0 = propsR.current || {}
         var dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1
-        var W = canvas.clientWidth || 800
-        var H = canvas.clientHeight || 520
-        if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
-          canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr)
+        var W = cv.clientWidth || 0, H = cv.clientHeight || 0
+        if (!W || !H) return
+        if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
+          cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr)
         }
-        // 令牌色（画布要具体值）
-        var C_BG = naoToken('--dsw-alias-bg-layer-1', '#141419')
-        var C_LINE = naoToken('--dsw-alias-border-l2', 'rgba(127,127,127,.20)')
-        var C_BRAND = naoToken('--dsw-alias-brand-primary', '#7c5cff')
-        var C_TX1 = naoToken('--dsw-alias-label-primary', '#e8e8ef')
-        var C_TX3 = naoToken('--dsw-alias-label-tertiary', '#7d7d8a')
-        try { ctx.setTransform(dpr, 0, 0, dpr, 0, 0) } catch (_) { }
-        // 实底：先铺底色（不再透出壁纸）
-        ctx.globalAlpha = 1
-        ctx.fillStyle = C_BG
-        ctx.fillRect(0, 0, W, H)
-        var d = dataR.current, P = posR.current
-        if (!d || !d.ids || !P) {
-          ctx.fillStyle = C_TX3; ctx.font = '13px system-ui'
-          ctx.fillText(p0.empty || '载入脑区…', 20, 32)
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+        ctx.clearRect(0, 0, W, H)
+        if (!data || !data.ids || !data.ids.length) {
+          ctx.fillStyle = token('--dsw-alias-label-tertiary', '#8a8a94')
+          ctx.font = '12px system-ui'
+          ctx.fillText(P.empty || '暂无脑区数据', 20, 30)
           return
         }
-        var cam = camR.current || { x: 0, y: 0, k: 1 }
-        ctx.save()
-        ctx.translate(W / 2 + cam.x, H / 2 + cam.y)
-        ctx.scale(cam.k || 1, cam.k || 1)
-        var hit = p0.hit || {}
-        var hasHit = !!p0.hasHit
-        // 边（细、低对比）
-        ctx.strokeStyle = C_LINE
+        if (!posR.current) posR.current = layout(data, W, H)
+        var pos = posR.current
+        var hit = P.hit || {}
+        var brand = token('--dsw-alias-brand-primary', '#4f6ef7')
+        var ink = token('--dsw-alias-label-secondary', '#5c5c66')
+
+        // 连线（跨区关联）：大区间淡弧，给网络感但不抢戏
+        var top = data.ids.slice(0, 26)
         ctx.lineWidth = 1
-        ctx.globalAlpha = 0.9
-        ;(d.links || []).forEach(function (e) {
-          var A = P[d.ids[e[0]]], B = P[d.ids[e[1]]]
-          if (!A || !B) return
-          ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke()
-        })
-        // 标签配额：只标注最大的 24 个区（悬停/命中不受限），否则小节点文字互相覆盖
-        var labelSet = {}
-        d.ids.slice().sort(function (a, b) {
-          return (((d.regions || {})[b] || {}).size || 0) - (((d.regions || {})[a] || {}).size || 0)
-        }).slice(0, 24).forEach(function (id) { labelSet[id] = 1 })
-        // 区节点
-        d.ids.forEach(function (id) {
-          var r = (d.regions && d.regions[id]) || { size: 1, rep: '' }
-          var p = P[id]
-          if (!p) return
-          var rad = Math.max(8, Math.sqrt(r.size || 1) * 6)
-          var hv = hit[id] || 0
-          var dim = hasHit && !hv
-          // 填充：品牌色低透明；命中升高
-          ctx.globalAlpha = dim ? 0.10 : (hv ? 0.34 + 0.28 * hv : 0.18)
-          ctx.fillStyle = C_BRAND
-          ctx.beginPath(); ctx.arc(p[0], p[1], rad, 0, Math.PI * 2); ctx.fill()
-          // 描边：命中亮、普通中
-          ctx.globalAlpha = dim ? 0.22 : (hv ? 0.95 : 0.55)
-          ctx.strokeStyle = C_BRAND
-          ctx.lineWidth = hv ? 2 : 1.2
+        for (var i = 0; i < top.length; i++) {
+          var a = pos[top[i]], b = pos[top[(i * 7 + 5) % top.length]]
+          if (!a || !b) continue
+          ctx.strokeStyle = 'rgba(79,110,247,.06)'
+          ctx.beginPath(); ctx.moveTo(a.x, a.y)
+          ctx.quadraticCurveTo((a.x + b.x) / 2 + (naoHash('c' + i) - 0.5) * 60, (a.y + b.y) / 2 + (naoHash('d' + i) - 0.5) * 60, b.x, b.y)
           ctx.stroke()
-          // 标签：够大或悬停/命中才写，保证不糊
-          var isHover = hoverR.current === id
-          if (labelSet[id] || isHover || hv) {
-            ctx.globalAlpha = 1
-            ctx.fillStyle = (hv || isHover) ? C_TX1 : C_TX3
-            ctx.font = '12px system-ui'
-            var label = String(r.rep || (id || '')).replace(/\s+/g, ' ').slice(0, isHover ? 14 : 8)
-            if (label) {
-              var tw = ctx.measureText ? ctx.measureText(label).width : label.length * 6
-              if (isHover || hv) {
-                // 命中/悬停：文字下垫半透明底，白字可读
-                ctx.globalAlpha = 0.55
-                ctx.fillStyle = C_BG
-                ctx.fillRect(p[0] - tw / 2 - 3, p[1] - 8, tw + 6, 16)
-                ctx.globalAlpha = 1
-                ctx.fillStyle = C_TX1
-              }
-              ctx.fillText(label, p[0] - tw / 2, p[1] + 4)
-            }
-          }
-        })
-        ctx.globalAlpha = 1
-        ctx.restore()
-      }
-
-      // 布局：数据变化后跑一次力导向（纯计算）
-      React.useEffect(function () {
-        var d = props && props.data
-        var ids = d && d.ids
-        if (!ids || !ids.length) { posR.current = null; draw(); return }
-        var n = ids.length
-        var P = ids.map(function (id, i) {
-          var a = (i / n) * Math.PI * 2
-          var rr = 160 + 240 * hash01(id)
-          return [Math.cos(a) * rr, Math.sin(a) * rr]
-        })
-        var size = ids.map(function (id) { return Math.max(8, Math.sqrt(((d.regions || {})[id] || {}).size || 1) * 6) })
-        var idx = {}
-        ids.forEach(function (id, i) { idx[id] = i })
-        var L = (d.links || []).filter(function (e) { return idx[e[0]] !== undefined && idx[e[1]] !== undefined })
-        for (var it = 0; it < 300; it++) {
-          var F = P.map(function () { return [0, 0] })
-          for (var i = 0; i < n; i++) {
-            for (var j = i + 1; j < n; j++) {
-              var dx = P[i][0] - P[j][0], dy = P[i][1] - P[j][1]
-              var d2 = dx * dx + dy * dy + 1
-              var f = (size[i] * size[j]) * 0.9 / d2
-              var dd = Math.sqrt(d2)
-              F[i][0] += dx / dd * f; F[i][1] += dy / dd * f
-              F[j][0] -= dx / dd * f; F[j][1] -= dy / dd * f
-            }
-          }
-          L.forEach(function (e) {
-            var a = idx[e[0]], b = idx[e[1]]
-            var ex = P[b][0] - P[a][0], ey = P[b][1] - P[a][1]
-            var ed = Math.sqrt(ex * ex + ey * ey) + 1
-            var target = 95 + size[a] + size[b]
-            var ef = (ed - target) * 0.012 * Math.min(3, Math.sqrt(e[2]) * 0.4)
-            F[a][0] += ex / ed * ef; F[a][1] += ey / ed * ef
-            F[b][0] -= ex / ed * ef; F[b][1] -= ey / ed * ef
-          })
-          for (var k = 0; k < n; k++) {
-            F[k][0] -= P[k][0] * 0.0025; F[k][1] -= P[k][1] * 0.0025
-            P[k][0] += Math.max(-14, Math.min(14, F[k][0]))
-            P[k][1] += Math.max(-14, Math.min(14, F[k][1]))
-          }
         }
-        var map = {}
-        ids.forEach(function (id, i) { map[id] = P[i] })
-        posR.current = map
-        draw()
-      }, [props && props.data])
+        // 圆
+        data.ids.forEach(function (id) {
+          var p = pos[id]; if (!p) return
+          var h = hit[id] || 0
+          var big = Math.min(1, p.r / (Math.min(W, H) * 0.175))
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+          if (h) {
+            ctx.fillStyle = brand
+          } else {
+            ctx.fillStyle = 'rgba(79,110,247,' + (0.055 + 0.16 * big).toFixed(3) + ')'
+          }
+          ctx.fill()
+          ctx.strokeStyle = h ? brand : 'rgba(79,110,247,' + (0.18 + 0.22 * big).toFixed(3) + ')'
+          ctx.lineWidth = h ? 1.5 : 1
+          ctx.stroke()
+        })
+        // 标签：能装下的前 14 个（命中区优先），名称取代表句前 6 字
+        var shown = 0
+        var order = data.ids.slice().sort(function (a, b) {
+          return (hit[b] || 0) - (hit[a] || 0) || (pos[b] ? pos[b].r : 0) - (pos[a] ? pos[a].r : 0)
+        })
+        order.forEach(function (id) {
+          if (shown >= 14) return
+          var p = pos[id]; if (!p || p.r < 17) return
+          var reg = (data.regions || {})[id] || {}
+          var nm = String(reg.rep || '').replace(/\s+/g, '').slice(0, 6) || String(id).slice(-6)
+          var h = hit[id] || 0
+          ctx.font = (h ? '600 ' : '') + '11px system-ui'
+          var w = ctx.measureText(nm).width
+          if (w > p.r * 1.75) return
+          ctx.fillStyle = h ? '#ffffff' : ink
+          ctx.fillText(nm, p.x - w / 2, p.y + 4)
+          shown++
+        })
+      }
 
-      // 挂载 / 尺寸变化重绘
       React.useEffect(function () {
+        dataR.current = props.data
+        posR.current = null      // 数据变化 → 重排
+        hoverR.current = null
         draw()
-        var canvas = canvasR.current
-        if (!canvas) return
-        var onResize = function () { draw() }
-        var ro = null
-        try { if (typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(onResize); ro.observe(canvas) } } catch (_) { }
-        if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('resize', onResize)
-        var t = setTimeout(function () { draw() }, 60)
-        return function () {
-          if (ro) { try { ro.disconnect() } catch (_) { } }
-          if (typeof window !== 'undefined' && window.removeEventListener) window.removeEventListener('resize', onResize)
-          try { clearTimeout(t) } catch (_) { }
-        }
-      }, [])
+        // 宿主首帧常给 0 尺寸：稍后再补绘一次
+        var t1 = setTimeout(draw, 60)
+        var t2 = setTimeout(draw, 320)
+        return function () { clearTimeout(t1); clearTimeout(t2) }
+      }, [props.data])
+      React.useEffect(function () { draw() })
 
-      function local(e) {
-        var c = canvasR.current
-        if (!c || !c.getBoundingClientRect) return [0, 0]
-        var r = c.getBoundingClientRect()
-        return [e.clientX - r.left, e.clientY - r.top]
+      function at(e) {
+        var cv = canvasR.current
+        if (!cv || !cv.getBoundingClientRect || !e) return null
+        var r = cv.getBoundingClientRect()
+        return { x: (e.clientX || 0) - r.left, y: (e.clientY || 0) - r.top }
       }
-      function toWorld(mx, my) {
-        var c = canvasR.current
-        var W = (c && c.clientWidth) || 800, H = (c && c.clientHeight) || 520
-        var cam = camR.current || { x: 0, y: 0, k: 1 }
-        var k = cam.k || 1
-        return [(mx - W / 2 - cam.x) / k, (my - H / 2 - cam.y) / k]
-      }
-      function pick(mx, my) {
-        var d = dataR.current, P = posR.current
-        if (!d || !d.ids || !P) return null
-        var w = toWorld(mx, my)
+      function pick(pt) {
+        if (!pt) return null
+        var data = dataR.current, pos = posR.current
+        if (!data || !pos) return null
         var best = null, bd = 1e9
-        d.ids.forEach(function (id) {
-          var p = P[id]; if (!p) return
-          var rad = Math.max(8, Math.sqrt((((d.regions || {})[id] || {}).size) || 1) * 6)
-          var ddx = p[0] - w[0], ddy = p[1] - w[1]
-          var dd = ddx * ddx + ddy * ddy
-          if (dd < rad * rad && dd < bd) { bd = dd; best = id }
+        data.ids.forEach(function (id) {
+          var p = pos[id]; if (!p) return
+          var dx = p.x - pt.x, dy = p.y - pt.y
+          var d2 = dx * dx + dy * dy
+          if (d2 <= p.r * p.r && d2 < bd) { bd = d2; best = id }
         })
         return best
       }
-      function showTip(mx, my) {
+      function showTip(id, pt) {
         var tip = tipR.current
-        var d = dataR.current
-        var id = hoverR.current
         if (!tip) return
-        var r = id && d && d.regions ? d.regions[id] : null
-        if (!r) { tip.style.display = 'none'; return }
+        if (!id || !pt) { tip.style.display = 'none'; return }
+        var data = dataR.current || {}
+        var reg = (data.regions || {})[id] || {}
+        var nm = String(reg.rep || '').replace(/\s+/g, '').slice(0, 40) || String(id)
+        tip.textContent = nm + ' · ' + naoSize(reg) + ' 元记忆 · ' + (reg.nEvents || 0) + ' 元事件'
         tip.style.display = 'block'
-        tip.style.left = (mx + 14) + 'px'
-        tip.style.top = (my + 12) + 'px'
-        tip.textContent = String(r.rep || '（无代表句）').slice(0, 48) + ' · ' + (r.size || 0) + ' 元记忆 · ' + (r.nEvents || 0) + ' 事件'
+        tip.style.left = Math.round(pt.x + 12) + 'px'
+        tip.style.top = Math.round(pt.y + 12) + 'px'
       }
 
-      return h('div', { className: 'nao-mapH' },
+      return h('div', { className: 'nao-stage', ref: wrapR },
         h('canvas', {
           ref: canvasR, className: 'nao-map',
-          onMouseDown: function (e) {
-            var p = local(e)
-            dragR.current = { x: p[0], y: p[1], cam: Object.assign({}, camR.current), moved: 0 }
-          },
           onMouseMove: function (e) {
-            var p = local(e)
-            var dg = dragR.current
-            if (dg) {
-              var dx = p[0] - dg.x, dy = p[1] - dg.y
-              dg.moved += Math.abs(dx) + Math.abs(dy)
-              var c0 = dg.cam || { x: 0, y: 0, k: 1 }
-              camR.current = { x: c0.x + dx, y: c0.y + dy, k: c0.k || 1 }
-              draw()
-              return
-            }
-            var id = pick(p[0], p[1])
-            if (id !== hoverR.current) { hoverR.current = id; draw() }
-            showTip(p[0], p[1])
+            var pt = at(e), id = pick(pt)
+            hoverR.current = id
+            showTip(id, pt)
+            if (canvasR.current && canvasR.current.style) canvasR.current.style.cursor = id ? 'pointer' : 'default'
           },
+          onMouseLeave: function () { hoverR.current = null; showTip(null, null) },
+          onMouseDown: function (e) { var pt = at(e); var id = pick(pt); if (id) showTip(id, pt) },
           onMouseUp: function (e) {
-            var dg = dragR.current
-            dragR.current = null
-            if (!dg || dg.moved > 6) return
-            var p = local(e)
-            var id = pick(p[0], p[1])
-            if (id && props && props.onPick) props.onPick(id)
+            var id = pick(at(e))
+            if (id && props.onPick) props.onPick(id)
           },
-          onMouseLeave: function () {
-            dragR.current = null
-            if (hoverR.current !== null) { hoverR.current = null; draw() }
-            var tip = tipR.current
-            if (tip) tip.style.display = 'none'
-          },
-          onWheel: function (e) {
-            if (e.preventDefault) e.preventDefault()
-            var cam = camR.current || { x: 0, y: 0, k: 1 }
-            var k = Math.max(0.5, Math.min(3, (cam.k || 1) * (e.deltaY > 0 ? 0.92 : 1.08)))
-            camR.current = { x: cam.x, y: cam.y, k: k }
-            draw()
-          },
+          onWheel: function () { /* 圆填充自适应视口，无需缩放 */ },
         }),
-        h('div', { className: 'nao-tip', ref: tipR, style: { display: 'none' } }))
+        h('div', { className: 'nao-tip', ref: tipR, style: { display: 'none' } }),
+        h('div', { className: 'nao-legend' },
+          h('span', null, h('i', { style: { background: token('--dsw-alias-brand-primary', '#4f6ef7') } }), '命中区'),
+          h('span', null, h('i', { style: { background: 'rgba(79,110,247,.22)' } }), '脑区'),
+          h('span', null, h('i', { style: { background: 'rgba(79,110,247,.07)' } }), '小簇')))
     }
 
-    /* ══ 脑图视图：工具条 + 地形卡 + 右侧结果/详情 ═══════════════════════════ */
+    /* ══ 脑图视图：地形 + 检索 ═══════════════════════════════════════════ */
     function AtlasView(props) {
-      var bs = React.useState(function () { return { loading: true, ids: null } })
-      var brain = bs[0] || { loading: true, ids: null }
-      var setBrain = bs[1]
-      var qs1 = React.useState('')
-      var qtext = qs1[0] || ''
-      var setQtext = qs1[1]
+      var bs = React.useState({ loading: true })
+      var brain = bs[0], setBrain = bs[1]
+      var qs = React.useState('')
+      var qtext = qs[0], setQtext = qs[1]
       var rs = React.useState({ busy: false, rows: [], q: '' })
-      var res = rs[0] || { busy: false, rows: [], q: '' }
-      var setRes = rs[1]
+      var res = rs[0], setRes = rs[1]
       var ds = React.useState(null)
-      var pickId = ds[0]
-      var setPickId = ds[1]
+      var pickId = ds[0], setPickId = ds[1]
       var es = React.useState(null)
-      var entry = es[0]
-      var setEntry = es[1]
+      var entry = es[0], setEntry = es[1]
 
       var loadBrain = React.useCallback(function () {
-        setBrain(function (b) { return Object.assign({}, b || {}, { loading: true }) })
+        setBrain({ loading: true })
         opGet('brain', { topn: 140 }).then(function (j) {
-          setBrain(j && j.ok ? Object.assign({}, j, { loading: false }) : { loading: false, ids: null, error: (j && j.error) || '读取失败' })
-        }).catch(function (e) { setBrain({ loading: false, ids: null, error: String(e) }) })
+          setBrain(j && j.ok ? { loading: false, ids: j.ids, regions: j.regions, links: j.links } : { loading: false, error: (j && j.error) || '读取失败' })
+        }).catch(function (e) { setBrain({ loading: false, error: String(e) }) })
       }, [])
       React.useEffect(function () { loadBrain() }, [loadBrain])
 
@@ -1170,175 +1083,189 @@ window.__ModuleLoader__.load({
       function openEntry(src) {
         setEntry({ loading: true, source: src })
         opGet('entry_get', { source: src }).then(function (j) {
-          setEntry(j && j.ok ? Object.assign({}, j, { loading: false }) : { loading: false, source: src, error: (j && j.error) || '读取失败' })
+          setEntry(j && j.ok ? { loading: false, source: src, head: j.head, body: j.body, tags: j.tags } : { loading: false, source: src, error: (j && j.error) || '读取失败' })
         }).catch(function (e) { setEntry({ loading: false, source: src, error: String(e) }) })
       }
 
+      // 命中映射：检索结果 → 其事件所在区（按名次衰减）→ 画布点亮
       var hit = {}
       var hasHit = false
-      var rows = res.rows || []
-      if (res.q && rows.length && brain.regions) {
+      if (res.q && res.rows.length && brain.regions) {
         var evBasin = {}
         Object.keys(brain.regions).forEach(function (bid) {
-          ;((brain.regions[bid] || {}).events || []).forEach(function (ev) { evBasin[ev] = bid })
+          (brain.regions[bid].events || []).forEach(function (ev) { evBasin[ev] = bid })
         })
-        rows.forEach(function (r, i) {
+        res.rows.forEach(function (r, i) {
           var b = evBasin[r.source]
           if (!b) return
-          var w = 1 - i / Math.max(8, rows.length)
-          hit[b] = Math.max(hit[b] || 0, w)
+          hit[b] = Math.max(hit[b] || 0, 1 - i / Math.max(8, res.rows.length))
           hasHit = true
         })
       }
       var region = pickId && brain.regions ? brain.regions[pickId] : null
-      var nEntries = props && props.count ? props.count : 0
+      var total = props.count || 0
 
-      return h('div', { className: 'nao-atlas' },
-        // 工具条（常规流，不叠画布）
-        h('div', { className: 'nao-toolbar' },
-          h('input', {
-            className: 'nao-search', type: 'text', value: qtext,
-            placeholder: '在脑中检索：输入任意问题，回车',
-            onChange: function (e) { setQtext(e.target.value) },
-            onKeyDown: function (e) { if (e.key === 'Enter') runSearch() },
-          }),
-          h('button', { className: 'nao-go', type: 'button', onClick: runSearch, disabled: res.busy }, res.busy ? '检索中…' : '检索'),
-          res.q ? h('button', { className: 'nao-clear', type: 'button', onClick: function () { setQtext(''); setRes({ busy: false, rows: [], q: '' }) } }, '清除') : null),
-        // 画布卡
-        h('div', { className: 'nao-canvasCard' },
-          h(PanelBoundary, null,
-            h(BrainMap, {
-              data: brain.ids ? brain : null, hit: hit, hasHit: hasHit,
-              onPick: function (id) { setPickId(id); setEntry(null) },
-              empty: brain.error || (brain.loading ? '载入脑区…' : '无脑区'),
-            }))),
-        h('div', { className: 'nao-foot' },
-          h('span', null, (nEntries ? nEntries + ' 元事件' : '—') + ' · ' + ((brain.ids && brain.ids.length) || 0) + ' 脑区 · 拖拽平移 / 滚轮缩放 / 点击脑区下钻'),
-          h('span', { className: 'nao-footR' },
-            h('button', { className: 'nao-mini', type: 'button', onClick: loadBrain }, '重绘'))),
-
-        // 右列：检索结果 / 区详情 / 条目详情
-        res.q ? h('div', { className: 'nao-side' },
-          h('div', { className: 'nao-sideHead' }, '检索结果', h('span', { className: 'nao-dim' }, rows.length ? rows.length + ' 条' : ''),
-            h('button', { className: 'nao-mini', type: 'button', onClick: function () { setQtext(''); setRes({ busy: false, rows: [], q: '' }) } }, '关闭')),
-          h('div', { className: 'nao-sideScroll' },
-            res.error ? h('div', { className: 'nao-err' }, res.error) : null,
-            !res.busy && !rows.length && !res.error ? h('div', { className: 'nao-dim nao-pad' }, '无结果') : null,
-            rows.map(function (r) {
-              return h('button', {
-                key: r.source, type: 'button', className: 'nao-hit', onClick: function () { openEntry(r.source) },
-              },
-                h('div', { className: 'nao-hitHead' }, String(r.head || '').split('\n')[0].slice(0, 60)),
-                h('div', { className: 'nao-bars' },
-                  [['S', r.S, '语义'], ['K', r.K, '词面'], ['B', r.B, '血缘']].map(function (b) {
-                    var pct = Math.round(100 * Math.max(0, Math.min(1, b[1] || 0)))
-                    return h('div', { key: b[0], className: 'nao-bar', title: b[2] + ' ' + pct + '%' },
-                      h('span', { className: 'nao-barL' }, b[0]),
-                      h('i', null, h('b', { style: { width: pct + '%' } })))
-                  })),
-                h('div', { className: 'nao-hitMeta' }, String(r.source).slice(0, 28) + ' · 总分 ' + (r.total || 0)))
-            }))) : null,
-
-        region && !res.q ? h('div', { className: 'nao-side' },
-          h('div', { className: 'nao-sideHead' }, '脑区详情',
-            h('button', { className: 'nao-mini', type: 'button', onClick: function () { setPickId(null) } }, '关闭')),
-          h('div', { className: 'nao-sideScroll' },
-            h('div', { className: 'nao-rep' }, region.rep || '（无代表句）'),
-            h('div', { className: 'nao-dim nao-pad' }, (region.size || 0) + ' 元记忆 · ' + (region.nEvents || 0) + ' 元事件'),
-            (region.events || []).map(function (ev) {
-              return h('button', { key: ev, type: 'button', className: 'nao-evRow', onClick: function () { openEntry(ev) } },
-                String(ev))
-            }))) : null,
-
-        entry ? h('div', { className: 'nao-detail' },
+      var right
+      if (entry) {
+        right = h('div', { className: 'nao-detail' },
           h('div', { className: 'nao-sideHead' },
-            h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis' } }, String(entry.source || '').slice(0, 32)),
-            h('button', { className: 'nao-mini', type: 'button', onClick: function () { setEntry(null) } }, '关闭')),
+            h('span', { className: 'nao-dim' }, String(entry.source || '').slice(0, 24)),
+            h('span', { className: 'nao-spacer' }),
+            h('button', { className: 'nao-btn', type: 'button', onClick: function () { setEntry(null) } }, '关闭')),
           entry.loading ? h('div', { className: 'nao-dim nao-pad' }, '载入…')
             : entry.error ? h('div', { className: 'nao-err' }, entry.error)
               : h('div', { className: 'nao-detailBody' },
-                h('div', { className: 'nao-detailHead' }, String(entry.head || '').split('\n')[0]),
-                h(Md, { text: entry.body || '' }))) : null)
+                h('div', { style: { fontSize: '13px', fontWeight: 600, color: 'var(--dsw-alias-label-primary,#1b1b1f)', marginBottom: '8px', lineHeight: 1.5 } },
+                  String(entry.head || '').split('\n')[0]),
+                h(Md, { text: entry.body || '' })))
+      } else if (res.q) {
+        right = h('div', { style: { display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 } },
+          h('div', { className: 'nao-sideHead' }, '检索结果',
+            h('span', { className: 'nao-spacer' }),
+            h('span', { className: 'nao-dim', style: { fontWeight: 400 } }, res.rows.length ? res.rows.length + ' 条' : '—')),
+          res.error ? h('div', { className: 'nao-err' }, res.error) : null,
+          !res.busy && !res.rows.length && !res.error ? h('div', { className: 'nao-empty' }, '没有匹配的记忆') : null,
+          h('div', { className: 'nao-sideScroll' },
+            res.rows.map(function (r, i) {
+              var tot = Number(r.total) || 0
+              return h('button', {
+                key: r.source, type: 'button', className: 'nao-hit' + (i === 0 ? ' is-on' : ''),
+                onClick: function () { openEntry(r.source) },
+              },
+                h('div', { className: 'nao-hitT' }, String(r.head || '').split('\n')[0].slice(0, 70)),
+                h('div', { className: 'nao-hitM' },
+                  h('div', { className: 'nao-bar' }, h('i', { style: { width: Math.round(100 * Math.max(0, Math.min(1, tot / 2))) + '%' } })),
+                  h('span', { className: 'nao-sku' },
+                    'S ', h('b', null, (Number(r.S) || 0).toFixed(2)),
+                    ' K ', h('b', null, (Number(r.K) || 0).toFixed(2)),
+                    ' B ', h('b', null, (Number(r.B) || 0).toFixed(2)))))
+            })))
+      } else if (region) {
+        right = h('div', { style: { display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 } },
+          h('div', { className: 'nao-sideHead' }, '脑区',
+            h('span', { className: 'nao-spacer' }),
+            h('button', { className: 'nao-btn', type: 'button', onClick: function () { setPickId(null) } }, '关闭')),
+          h('div', { className: 'nao-rep' }, String(region.rep || '（该区没有代表句）').slice(0, 160)),
+          h('div', { className: 'nao-dim nao-pad' }, naoSize(region) + ' 元记忆 · ' + (region.nEvents || 0) + ' 元事件'),
+          h('div', { className: 'nao-sideScroll' },
+            (region.events || []).map(function (ev) {
+              return h('button', { key: ev, type: 'button', className: 'nao-evRow', onClick: function () { openEntry(ev) }, title: ev }, ev)
+            })))
+      } else {
+        right = h('div', null,
+          h('div', { className: 'nao-sideHead' }, '提示'),
+          h('div', { className: 'nao-empty', style: { height: '240px' } }, '输入问题检索，或点击地形上的区'))
+      }
+
+      return h('div', { className: 'nao-body' },
+        h('div', { className: 'nao-left' },
+          h('div', { className: 'nao-tool' },
+            h('input', {
+              className: 'nao-input', type: 'text', value: qtext,
+              placeholder: '在脑中检索：输入任意问题，回车',
+              onChange: function (e) { setQtext(e.target.value) },
+              onKeyDown: function (e) { if (e.key === 'Enter') runSearch() },
+            }),
+            h('button', { className: 'nao-btn primary', type: 'button', onClick: runSearch, disabled: res.busy }, res.busy ? '检索中' : '检索'),
+            res.q ? h('button', {
+              className: 'nao-btn', type: 'button',
+              onClick: function () { setQtext(''); setRes({ busy: false, rows: [], q: '' }); setPickId(null) },
+            }, '清除') : null),
+          h(BrainMap, {
+            data: brain.ids ? brain : null, hit: hit, hasHit: hasHit,
+            onPick: function (id) { setPickId(id); setEntry(null); setRes({ busy: false, rows: [], q: '' }) },
+            empty: brain.error || (brain.loading ? '载入脑区…' : '暂无脑区数据'),
+          }),
+          h('div', { className: 'nao-dim', style: { padding: '8px 2px 10px', fontSize: '11px' } },
+            total ? total.toLocaleString() + ' 元事件 · ' + (brain.ids ? brain.ids.length : 0) + ' 脑区 · 面积 = 元记忆数' : '')),
+        h('aside', { className: 'nao-right' }, right))
     }
 
     /* ══ 睡眠视图：入库即组织（元记忆生长流）═══════════════════════════ */
     function SleepView(props) {
       var st = React.useState({ loading: true, items: [], mm: 0, regions: 0, entryRegion: 0 })
-      var s = st[0] || { loading: true, items: [], mm: 0, regions: 0, entryRegion: 0 }
-      var setS = st[1]
+      var s = st[0], setS = st[1]
       React.useEffect(function () {
         Promise.all([opGet('recent', { n: 60 }), opGet('mm_stats')]).then(function (arr) {
           var r1 = arr[0] || {}, r2 = arr[1] || {}
-          setS({ loading: false, items: r1.items || [], mm: r2.mm || 0, regions: r2.regions || 0, entryRegion: r2.entry_region || 0, error: r1.error || r2.error })
+          setS({
+            loading: false, items: r1.items || [],
+            mm: r2.mm || 0, regions: r2.regions || 0, entryRegion: r2.entry_region || 0,
+            error: r1.error || r2.error,
+          })
         }).catch(function (e) { setS({ loading: false, items: [], mm: 0, regions: 0, entryRegion: 0, error: String(e) }) })
       }, [])
       var items = s.items || []
       var withMm = items.filter(function (x) { return x.mm > 0 }).length
       return h('div', { className: 'nao-sleep' },
         h('div', { className: 'nao-stats' },
-          [['元记忆', s.mm], ['脑区', s.regions], ['已定盆事件', s.entryRegion], ['近 60 条入睡率', items.length ? Math.round(100 * withMm / items.length) + '%' : '—']].map(function (c) {
+          [['元记忆', s.mm ? s.mm.toLocaleString() : '—'],
+           ['脑区', s.regions || '—'],
+           ['已定盆事件', s.entryRegion ? s.entryRegion.toLocaleString() : '—'],
+           ['近 60 条入睡率', items.length ? Math.round(100 * withMm / items.length) + '%' : '—']].map(function (c) {
             return h('div', { key: c[0], className: 'nao-stat' },
               h('div', { className: 'nao-statV' }, String(c[1])),
               h('div', { className: 'nao-statL' }, c[0]))
           })),
         s.error ? h('div', { className: 'nao-err' }, s.error) : null,
-        h('div', { className: 'nao-stream' },
+        h('div', { className: 'nao-table' },
           items.map(function (it) {
             return h('div', { key: it.source, className: 'nao-srow' },
               h('div', { className: 'nao-stime' }, String(it.grewAt || '').replace('T', ' ').slice(5, 16)),
               h('div', { className: 'nao-smain' },
-                h('div', { className: 'nao-shead', title: String(it.head || '') }, String(it.head || '').split('\n')[0].slice(0, 90)),
+                h('div', { className: 'nao-shead', title: it.source }, String(it.head || '').split('\n')[0].slice(0, 80)),
                 h('div', { className: 'nao-smeta' },
-                  h('span', { className: 'nao-chip' + (it.mm ? '' : ' is-warn') }, it.mm ? it.mm + ' 句' : '未睡眠'),
-                  it.basin ? h('span', { className: 'nao-chip' }, '区 ' + String(it.basin).slice(0, 14) + (it.basinSize ? ' ·' + it.basinSize : '')) : null,
+                  h('span', { className: 'nao-tag' }, it.mm ? it.mm + ' 句' : '未睡眠'),
+                  it.basin ? h('span', { className: 'nao-tag' }, '区 ' + String(it.basin).slice(-8) + (it.basinSize ? ' · ' + it.basinSize : '')) : null,
                   (it.tags || []).slice(0, 4).map(function (t) { return h('span', { key: t, className: 'nao-tag' }, t) }))))
           })))
     }
 
-    /* ══ 面板壳：侧栏导航 + 内容 ═════════════════════════════════════════ */
+    /* ══ 面板壳：左导航 + 顶栏 + 内容 ═════════════════════════════════════ */
     function App(props) {
       var vs = React.useState('brain')
-      var view = vs[0] || 'brain'
-      var setView = vs[1]
-      var ts = React.useState({ loading: true, count: 0 })
-      var tree = ts[0] || { loading: true, count: 0 }
-      var setTree = ts[1]
+      var view = vs[0], setView = vs[1]
+      var ts = React.useState({ loading: true })
+      var tree = ts[0], setTree = ts[1]
       var loadTree = React.useCallback(function () {
-        opGet('stats', {}).then(function (j) {
-          setTree(j && j.ok ? { loading: false, count: j.entries || 0 } : { loading: false, count: 0, error: (j && j.error) || '读取失败' })
-        }).catch(function (e) { setTree({ loading: false, count: 0, error: String(e) }) })
+        opGet('stats').then(function (j) {
+          setTree(j && j.ok ? { loading: false, count: j.entries || 0, mm: j.mm || 0 } : { loading: false, error: (j && j.error) || '读取失败' })
+        }).catch(function (e) { setTree({ loading: false, error: String(e) }) })
       }, [])
       React.useEffect(function () { loadTree() }, [loadTree])
-      var back = props && (props.back || props.backToConversation)
-      var TITLE = { brain: '脑图', sleep: '睡眠', pipe: '入库', settings: '设置' }
+      var back = (props && (props.backToConversation || props.back)) || null
+      var NAV = [
+        ['brain', '脑图', 'M12 3.6c2 0 3.6 1.6 3.6 3.6S14 10.8 12 10.8 8.4 9.2 8.4 7.2 10 3.6 12 3.6Zm0 9.6c3.3 0 6 1.6 6 3.6v3.6H6V16.8c0-2 2.7-3.6 6-3.6Z'],
+        ['sleep', '睡眠', 'M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17Zm-3 5.2 3.2 4.6H9.4v1.6h5.2v-1.5L11.4 8.7h3V7.2H9Z'],
+        ['pipe', '入库', 'M4.5 6.5h15v3h-15Zm1.5 4.5h12l-1.2 8.5H7.2Z'],
+        ['settings', '设置', 'M12 8.6A3.4 3.4 0 1 0 12 15.4 3.4 3.4 0 0 0 12 8.6Zm8 3.4-.2-1.1 1.4-1.2-1.3-2.2-1.8.5-1-.6-.3-1.9h-2.6l-.3 1.9-1 .6-1.8-.5L5.8 9.7l1.4 1.2L7 12c0 .4 0 .7.1 1.1l-1.4 1.2 1.3 2.2 1.8-.5 1 .6.3 1.9h2.6l.3-1.9 1-.6 1.8.5 1.3-2.2-1.4-1.2c.1-.4.2-.7.2-1.1Z'],
+      ]
       return h('div', { className: 'nao-app' },
-        h('div', { className: 'nao-rail' },
-          [['brain', '脑图', 'M12 3.6c2 0 3.6 1.6 3.6 3.6S14 10.8 12 10.8 8.4 9.2 8.4 7.2 10 3.6 12 3.6Zm0 9.6c3.3 0 6 1.6 6 3.6v3.6H6V16.8c0-2 2.7-3.6 6-3.6Z'],
-           ['sleep', '睡眠', 'M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17Zm-3 5.2 3.2 4.6H9.4v1.6h5.2v-1.5L11.4 8.7h3V7.2H9Z'],
-           ['pipe', '入库', 'M4.5 6.5h15v3h-15Zm1.5 4.5h12l-1.2 8.5H7.2Z'],
-           ['settings', '设置', 'M12 8.6A3.4 3.4 0 1 0 12 15.4 3.4 3.4 0 0 0 12 8.6Zm8 3.4-.2-1.1 1.4-1.2-1.3-2.2-1.8.5-1-.6-.3-1.9h-2.6l-.3 1.9-1 .6-1.8-.5L5.8 9.7l1.4 1.2L7 12c0 .4 0 .7.1 1.1l-1.4 1.2 1.3 2.2 1.8-.5 1 .6.3 1.9h2.6l.3-1.9 1-.6 1.8.5 1.3-2.2-1.4-1.2c.1-.4.2-.7.2-1.1Z']
-          ].map(function (v) {
+        h('nav', { className: 'nao-nav' },
+          h('div', { className: 'nao-navTitle' }, '记忆'),
+          NAV.map(function (v) {
             return h('button', {
-              key: v[0], type: 'button', className: 'nao-railBtn' + (view === v[0] ? ' is-on' : ''),
-              title: v[1], onClick: function () { setView(v[0]) },
+              key: v[0], type: 'button', className: 'nao-navBtn' + (view === v[0] ? ' is-on' : ''),
+              onClick: function () { setView(v[0]) },
             },
-              h('svg', { width: 20, height: 20, viewBox: '0 0 24 24', 'aria-hidden': true },
-                h('path', { d: v[2], fill: 'currentColor' })),
+              h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', 'aria-hidden': true }, h('path', { d: v[2], fill: 'currentColor' })),
               h('span', null, v[1]))
           })),
         h('div', { className: 'nao-main' },
-          h('div', { className: 'nao-top' },
-            h('span', { className: 'nao-title' }, TITLE[view] || '脑图'),
+          h('header', { className: 'nao-top' },
+            h('h1', { className: 'nao-title' }, view === 'brain' ? '脑图' : view === 'sleep' ? '睡眠' : view === 'pipe' ? '入库' : '设置'),
+            h('span', { className: 'nao-count' },
+              tree.error ? '服务异常'
+                : tree.loading ? '载入中…'
+                  : view === 'brain' ? (tree.count || 0).toLocaleString() + ' 元事件'
+                    : (tree.count || 0).toLocaleString() + ' 条'),
             h('span', { className: 'nao-spacer' }),
-            h('span', { className: 'nao-count' }, tree.error ? '服务异常' : (tree.loading ? '载入中…' : (tree.count || 0) + ' 条')),
-            h('button', { className: 'nao-mini', type: 'button', onClick: loadTree }, '刷新'),
-            typeof back === 'function' ? h('button', { className: 'nao-mini', type: 'button', onClick: function () { back() } }, '返回对话') : null),
-          h('div', { className: 'nao-body' },
-            h(PanelBoundary, null,
-              view === 'brain' ? h(AtlasView, { count: tree.count }) : null,
-              view === 'sleep' ? h(SleepView) : null,
-              view === 'pipe' ? h(PipePanel) : null,
-              view === 'settings' ? h(SettingsPanel) : null))))
+            h('button', { className: 'nao-btn', type: 'button', onClick: loadTree }, '刷新'),
+            typeof back === 'function' ? h('button', { className: 'nao-btn', type: 'button', onClick: function () { back() } }, '返回对话') : null),
+          view === 'brain' ? h(AtlasView, { count: tree.count }) : null,
+          view === 'sleep' ? h(SleepView) : null,
+          view === 'pipe' ? h(PipePanel) : null,
+          view === 'settings' ? h(SettingsPanel) : null))
     }
 
     var WikiApp = App          // 宿主注册名保持 WikiApp（slots 注入 + 桩测按函数名取）
