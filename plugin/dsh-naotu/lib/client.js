@@ -242,73 +242,88 @@ window.__ModuleLoader__.load({
       '.lbm-chooseBtn{display:block;width:100%;text-align:left;background:var(--dsw-alias-bg-layer-1);border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-md,8px);cursor:pointer;font:inherit;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary);padding:7px 10px;margin-bottom:6px}',
       '.lbm-chooseBtn:hover{background:var(--dsw-alias-interactive-bg-hover)}',
     ]
-    /* ══ 脑图 v1 · 新壳样式（nao- 前缀；令牌全部走宿主 var(--dsw-alias-*)）══ */
+    /* ══ 脑图 · 样式（原生 DSH 形态：实底面板 · 1px 分界线 · 令牌色 · 无辉光）══════
+       令牌全部走 var(--dsw-alias-*, 回退)，圆角走 var(--dsw-radius-*, 回退)。
+       设计原则：① 内容区一律实底，不叠壁纸 ② 层次靠 bg-base/layer-1/layer-2 + 分界线
+       ③ 字号 13/12/11，主文字 label-primary、次 label-secondary、弱 label-tertiary
+       ④ 品牌紫只用于选中态/进度条/命中节点，不做大面积填充 */
     var NAO_CSS = [
-      '.nao-app{display:flex;height:100%;min-height:0;width:100%;flex:1 1 auto;box-sizing:border-box;overflow:hidden;background:var(--dsw-alias-bg-primary,#101014);color:var(--dsw-alias-label-primary,#e8e8ef)}',
-      '.nao-rail{width:56px;flex:none;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0;border-right:1px solid var(--dsw-alias-border-secondary,rgba(127,127,127,.14))}',
-      '.nao-railBtn{width:48px;border:0;background:transparent;color:var(--dsw-alias-label-secondary,#9a9aa8);display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;border-radius:10px;font-size:10px;cursor:pointer;line-height:1}',
-      '.nao-railBtn:hover{background:rgba(124,92,255,.10);color:var(--dsw-alias-label-primary,#e8e8ef)}',
-      '.nao-railBtn.is-on{color:var(--dsw-alias-brand-primary,#7c5cff);background:rgba(124,92,255,.14)}',
-      '.nao-main{flex:1;min-width:0;display:flex;flex-direction:column}',
-      '.nao-top{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--dsw-alias-border-secondary,rgba(127,127,127,.14))}',
-      '.nao-title{font-weight:600;font-size:13px}',
+      /* 壳 */
+      '.nao-app{display:flex;flex:1 1 auto;height:100%;min-height:0;width:100%;box-sizing:border-box;overflow:hidden;background:var(--dsw-alias-bg-base,#101014);color:var(--dsw-alias-label-primary,#e8e8ef);font-size:13px;line-height:1.5}',
+      /* 左导航 */
+      '.nao-rail{width:68px;flex:none;display:flex;flex-direction:column;gap:2px;padding:8px 6px;box-sizing:border-box;background:var(--dsw-alias-bg-layer-2,#17171c);border-right:1px solid var(--dsw-alias-separator,rgba(127,127,127,.16))}',
+      '.nao-railBtn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 2px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-secondary,#a0a0ae);font-size:11px;cursor:pointer;font-family:inherit}',
+      '.nao-railBtn:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.10));color:var(--dsw-alias-label-primary,#e8e8ef)}',
+      '.nao-railBtn.is-on{background:var(--dsw-alias-interactive-bg-active,rgba(127,127,127,.16));color:var(--dsw-alias-label-primary,#e8e8ef)}',
+      '.nao-railBtn.is-on svg{color:var(--dsw-alias-brand-primary,#7c5cff)}',
+      /* 主区 */
+      '.nao-main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--dsw-alias-bg-base,#101014)}',
+      '.nao-top{height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 14px;box-sizing:border-box;border-bottom:1px solid var(--dsw-alias-separator,rgba(127,127,127,.16))}',
+      '.nao-title{font-size:14px;font-weight:600;color:var(--dsw-alias-label-primary,#e8e8ef)}',
       '.nao-spacer{flex:1}',
-      '.nao-count{font-size:11px;color:var(--dsw-alias-label-secondary,#8b8b99)}',
-      '.nao-mini{border:1px solid var(--dsw-alias-border-secondary,rgba(127,127,127,.22));background:transparent;color:var(--dsw-alias-label-secondary,#9a9aa8);font-size:11px;padding:2px 8px;border-radius:7px;cursor:pointer}',
-      '.nao-mini:hover{color:var(--dsw-alias-brand-primary,#7c5cff);border-color:rgba(124,92,255,.5)}',
-      '.nao-body{flex:1;min-height:0;display:flex;position:relative}',
-      // 脑图
-      '.nao-atlas{flex:1;min-width:0;display:flex;position:relative}',
-      '.nao-mapWrap{position:relative;flex:1;min-width:0;min-height:280px;overflow:hidden}',
+      '.nao-count{font-size:12px;color:var(--dsw-alias-label-tertiary,#7d7d8a);font-variant-numeric:tabular-nums}',
+      '.nao-mini{height:26px;padding:0 10px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.22));border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary,#a0a0ae);font-size:12px;cursor:pointer;font-family:inherit}',
+      '.nao-mini:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.10));color:var(--dsw-alias-label-primary,#e8e8ef)}',
+      '.nao-body{flex:1;min-height:0;display:flex}',
+      /* 脑图视图：工具条 + 画布卡 + 右侧栏 */
+      '.nao-atlas{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}',
+      '.nao-toolbar{flex:none;display:flex;gap:8px;align-items:center;padding:10px 14px}',
+      '.nao-search{flex:1;height:32px;padding:0 10px;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.22));border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-2,#17171c);color:var(--dsw-alias-label-primary,#e8e8ef);font-size:13px;font-family:inherit;outline:none}',
+      '.nao-search::placeholder{color:var(--dsw-alias-label-dimmed,#6b6b78)}',
+      '.nao-search:focus{border-color:var(--dsw-alias-brand-primary,#7c5cff)}',
+      '.nao-go{height:32px;padding:0 14px;border:0;border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-button-primary-fill,var(--dsw-alias-brand-primary,#7c5cff));color:var(--dsw-alias-label-primary-foreground,#fff);font-size:13px;cursor:pointer;font-family:inherit}',
+      '.nao-go:hover{background:var(--dsw-alias-button-primary-hover,#6b4ff0)}',
+      '.nao-go[disabled]{opacity:.55;cursor:default}',
+      '.nao-clear{height:32px;padding:0 10px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.22));border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary,#a0a0ae);font-size:12px;cursor:pointer;font-family:inherit}',
+      '.nao-clear:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.10))}',
+      '.nao-canvasCard{position:relative;flex:1;min-height:240px;margin:0 14px 8px;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.22));border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-layer-1,#141419);overflow:hidden}',
       '.nao-mapH{position:absolute;inset:0}',
       '.nao-map{width:100%;height:100%;display:block;cursor:grab}',
       '.nao-map:active{cursor:grabbing}',
-      '.nao-searchBar{position:absolute;top:12px;left:12px;right:12px;display:flex;gap:6px;align-items:center;z-index:3}',
-      '.nao-search{flex:1;height:34px;padding:0 12px;border-radius:10px;border:1px solid var(--dsw-alias-border-secondary,rgba(127,127,127,.25));background:rgba(16,16,24,.62);color:inherit;font-size:13px;outline:none;backdrop-filter:blur(6px)}',
-      '.nao-search:focus{border-color:rgba(124,92,255,.65)}',
-      '.nao-go,.nao-clear{height:34px;padding:0 12px;border-radius:10px;border:0;cursor:pointer;font-size:12px}',
-      '.nao-go{background:var(--dsw-alias-brand-primary,#7c5cff);color:#fff}',
-      '.nao-go:disabled{opacity:.6;cursor:default}',
-      '.nao-clear{background:rgba(127,127,127,.14);color:var(--dsw-alias-label-secondary,#9a9aa8)}',
-      '.nao-foot{position:absolute;bottom:8px;left:14px;right:14px;display:flex;justify-content:space-between;font-size:11px;color:var(--dsw-alias-label-secondary,#8b8b99);z-index:2;pointer-events:none}',
-      '.nao-footR{pointer-events:auto}',
-      '.nao-tip{position:absolute;left:14px;bottom:30px;max-width:340px;padding:8px 10px;border-radius:9px;background:rgba(12,12,20,.88);border:1px solid rgba(124,92,255,.35);z-index:4;pointer-events:none}',
-      '.nao-tipHead{font-size:12px;line-height:1.4;color:#e8e8ef}',
-      '.nao-tipMeta{font-size:10px;color:#9a9aa8;margin-top:3px}',
-      '.nao-side{width:300px;flex:none;border-left:1px solid var(--dsw-alias-border-secondary,rgba(127,127,127,.14));overflow:auto;padding:10px}',
-      '.nao-sideHead{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;font-weight:600;margin-bottom:8px}',
-      '.nao-hit{display:block;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid rgba(127,127,127,.10);padding:8px 4px;cursor:pointer;color:inherit}',
-      '.nao-hit:hover{background:rgba(124,92,255,.08)}',
-      '.nao-hitHead{font-size:12px;line-height:1.45}',
-      '.nao-bars{display:flex;gap:8px;margin-top:5px}',
-      '.nao-bar{flex:1;display:flex;align-items:center;gap:4px;font-size:9px;color:var(--dsw-alias-label-secondary,#8b8b99)}',
-      '.nao-barL{flex:none;width:8px}',
-      '.nao-bar i{display:block;height:3px;border-radius:2px;background:var(--dsw-alias-brand-primary,#7c5cff);min-width:1px}',
-      '.nao-hitMeta{font-size:10px;color:var(--dsw-alias-label-secondary,#8b8b99);margin-top:5px}',
-      '.nao-rep{font-size:12px;line-height:1.55;padding:8px 10px;border-radius:9px;background:rgba(127,127,127,.08);margin-bottom:8px}',
-      '.nao-evRow{display:block;width:100%;text-align:left;border:0;background:transparent;color:inherit;font-size:11px;padding:5px 6px;border-radius:6px;cursor:pointer}',
-      '.nao-evRow:hover{background:rgba(124,92,255,.10)}',
-      '.nao-detail{width:360px;flex:none;border-left:1px solid var(--dsw-alias-border-secondary,rgba(127,127,127,.14));overflow:auto;padding:12px}',
-      '.nao-detailHead{font-size:13px;font-weight:600;margin-bottom:10px;line-height:1.45}',
-      '.nao-detailBody{font-size:12.5px;line-height:1.68}',
-      // 睡眠
-      '.nao-sleep{flex:1;min-width:0;overflow:auto;padding:14px}',
-      '.nao-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}',
-      '.nao-stat{border:1px solid var(--dsw-alias-border-secondary,rgba(127,127,127,.18));border-radius:10px;padding:10px 12px;background:rgba(127,127,127,.05)}',
-      '.nao-statV{font-size:20px;font-weight:600;letter-spacing:-.02em}',
-      '.nao-statL{font-size:11px;color:var(--dsw-alias-label-secondary,#8b8b99);margin-top:2px}',
-      '.nao-stream{display:flex;flex-direction:column}',
-      '.nao-srow{display:flex;gap:10px;padding:7px 6px;border-bottom:1px solid rgba(127,127,127,.08)}',
-      '.nao-stime{width:72px;flex:none;font-size:10.5px;color:var(--dsw-alias-label-secondary,#8b8b99);padding-top:2px;font-variant-numeric:tabular-nums}',
+      '.nao-tip{position:absolute;pointer-events:none;max-width:280px;padding:6px 8px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.22));border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-3,#1e1e24);color:var(--dsw-alias-label-primary,#e8e8ef);font-size:12px;line-height:1.45;box-shadow:0 4px 14px rgba(0,0,0,.35);z-index:5}',
+      '.nao-foot{flex:none;display:flex;align-items:center;gap:8px;padding:0 14px 10px;font-size:11px;color:var(--dsw-alias-label-tertiary,#7d7d8a)}',
+      '.nao-footR{margin-left:auto;display:flex;gap:6px}',
+      /* 右侧列 */
+      '.nao-side{width:320px;flex:none;display:flex;flex-direction:column;min-height:0;background:var(--dsw-alias-bg-base,#101014);border-left:1px solid var(--dsw-alias-separator,rgba(127,127,127,.16))}',
+      '.nao-sideHead{flex:none;display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;box-sizing:border-box;border-bottom:1px solid var(--dsw-alias-separator,rgba(127,127,127,.16));font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary,#e8e8ef);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.nao-sideHead .nao-mini{margin-left:auto}',
+      '.nao-sideScroll{flex:1;min-height:0;overflow:auto;padding:8px}',
+      '.nao-hit{display:block;width:100%;box-sizing:border-box;text-align:left;padding:8px;margin:0 0 6px;border:1px solid transparent;border-radius:var(--dsw-radius-md,8px);background:transparent;color:inherit;cursor:pointer;font-family:inherit}',
+      '.nao-hit:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.10));border-color:var(--dsw-alias-border-l2,rgba(127,127,127,.22))}',
+      '.nao-hitHead{font-size:13px;color:var(--dsw-alias-label-primary,#e8e8ef);line-height:1.4;margin-bottom:5px}',
+      '.nao-hitMeta{font-size:11px;color:var(--dsw-alias-label-tertiary,#7d7d8a);margin-top:4px;font-variant-numeric:tabular-nums}',
+      '.nao-bars{display:flex;gap:8px}',
+      '.nao-bar{flex:1;display:flex;align-items:center;gap:4px;font-size:10px;color:var(--dsw-alias-label-tertiary,#7d7d8a)}',
+      '.nao-barL{width:8px;flex:none;text-align:center}',
+      '.nao-bar i{flex:1;height:3px;border-radius:2px;background:var(--dsw-alias-border-l2,rgba(127,127,127,.22));position:relative;overflow:hidden;display:block}',
+      '.nao-bar b{display:block;height:100%;border-radius:2px;background:var(--dsw-alias-brand-primary,#7c5cff)}',
+      /* 区详情 / 条目详情 */
+      '.nao-rep{padding:10px 12px 4px;font-size:13px;color:var(--dsw-alias-label-primary,#e8e8ef);line-height:1.55}',
+      '.nao-evRow{display:block;width:100%;box-sizing:border-box;text-align:left;padding:6px 8px;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary,#a0a0ae);font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.nao-evRow:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.10));color:var(--dsw-alias-label-primary,#e8e8ef)}',
+      '.nao-detail{width:360px;flex:none;display:flex;flex-direction:column;min-height:0;background:var(--dsw-alias-bg-base,#101014);border-left:1px solid var(--dsw-alias-separator,rgba(127,127,127,.16))}',
+      '.nao-detailHead{padding:10px 12px 6px;font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary,#e8e8ef);line-height:1.45}',
+      '.nao-detailBody{flex:1;min-height:0;overflow:auto;padding:0 12px 16px;font-size:13px;line-height:1.6;color:var(--dsw-alias-label-primary,#e8e8ef)}',
+      /* 睡眠视图 */
+      '.nao-sleep{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0;overflow:auto;padding:14px}',
+      '.nao-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;flex:none}',
+      '.nao-stat{padding:12px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.22));border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-layer-1,#141419)}',
+      '.nao-statV{font-size:20px;font-weight:600;color:var(--dsw-alias-label-primary,#e8e8ef);font-variant-numeric:tabular-nums;line-height:1.2}',
+      '.nao-statL{margin-top:4px;font-size:11px;color:var(--dsw-alias-label-tertiary,#7d7d8a)}',
+      '.nao-stream{margin-top:12px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.22));border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-layer-1,#141419);overflow:hidden}',
+      '.nao-srow{display:flex;gap:12px;padding:10px 12px;border-bottom:1px solid var(--dsw-alias-separator,rgba(127,127,127,.16))}',
+      '.nao-srow:last-child{border-bottom:0}',
+      '.nao-stime{flex:none;width:86px;font-size:11px;color:var(--dsw-alias-label-tertiary,#7d7d8a);font-variant-numeric:tabular-nums;padding-top:2px}',
       '.nao-smain{flex:1;min-width:0}',
-      '.nao-shead{font-size:12.5px;line-height:1.45}',
-      '.nao-smeta{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;align-items:center}',
-      '.nao-chip{font-size:9.5px;padding:1px 6px;border-radius:999px;background:rgba(124,92,255,.13);color:var(--dsw-alias-brand-primary,#8f74ff)}',
-      '.nao-chip.is-warn{background:rgba(217,119,6,.16);color:#d97706}',
-      '.nao-tag{font-size:9.5px;padding:1px 6px;border-radius:6px;background:rgba(127,127,127,.12);color:var(--dsw-alias-label-secondary,#8b8b99)}',
-      '.nao-dim{color:var(--dsw-alias-label-secondary,#8b8b99)}',
-      '.nao-pad{padding:8px 4px}',
-      '.nao-err{color:#dc2626;font-size:11.5px;padding:6px 4px;line-height:1.5}',
+      '.nao-shead{font-size:13px;color:var(--dsw-alias-label-primary,#e8e8ef);line-height:1.45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.nao-smeta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:5px}',
+      '.nao-chip{display:inline-flex;align-items:center;height:18px;padding:0 6px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.22));border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-2,#17171c);color:var(--dsw-alias-label-secondary,#a0a0ae);font-size:11px}',
+      '.nao-chip.is-warn{border-color:var(--dsw-alias-state-error-primary,rgba(240,90,90,.5));color:var(--dsw-alias-state-error-primary,#f05a5a)}',
+      '.nao-tag{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-3,#1e1e24);color:var(--dsw-alias-label-tertiary,#7d7d8a);font-size:11px}',
+      /* 通用 */
+      '.nao-dim{color:var(--dsw-alias-label-tertiary,#7d7d8a);font-size:12px}',
+      '.nao-pad{padding:10px 12px}',
+      '.nao-err{margin:8px 12px;padding:8px 10px;border:1px solid var(--dsw-alias-state-error-primary,rgba(240,90,90,.5));border-radius:var(--dsw-radius-sm,6px);background:rgba(240,90,90,.08);color:var(--dsw-alias-state-error-primary,#f05a5a);font-size:12px;line-height:1.5;word-break:break-word}',
     ]
 
     /** 检索「范围」→ 服务端过滤参数（纯函数，便于桩测：这是"排除在哪一层生效"的唯一定义处） */
@@ -833,21 +848,28 @@ window.__ModuleLoader__.load({
       return fetchJson(s)
     }
 
-    /* ── 错误边界：面板内任何子树渲染抛错，显示原因而不是整块空白 ─────────────
-       实现说明：不依赖 class 组件能力（宿主 React 子集情况未知），用 try 探测
-       Component.prototype；不可用时退化为直接渲染 children（渲染错误仍冒泡到宿主）。*/
+    /* 读宿主主题令牌（画布内需要具体色值，不能直接用 var()）*/
+    function naoToken(name, fb) {
+      try {
+        var v = getComputedStyle(document.documentElement).getPropertyValue(name)
+        v = (v || '').trim()
+        return v || fb
+      } catch (_) { return fb }
+    }
+
+    /* ── 错误边界：渲染抛错时显示原因而不是整块空白 ─────────────────────────── */
     function PanelBoundary(props) {
       var st = React.useState(null)
-      var err = st[0], setErr = st[1]
+      var err = st[0]
       if (err) {
-        return h('div', { className: 'nao-err nao-pad' }, '面板渲染失败：' + String((err && err.message) || err))
+        return h('div', { className: 'nao-err' }, '面板渲染失败：' + String((err && err.message) || err))
       }
       return props.children
     }
 
     /* ══ 脑区地形图（canvas，零 React 状态：布局/相机/悬停全部走 ref + 手动重绘）══
-       历史 bug（v1.1.0）：本组件曾用 useState 存 cam，宿主渲染器下该状态槽出现
-       null → 首帧读 ui.cam 抛 TypeError，整个面板空白。改为纯 ref 后不依赖状态槽。
+       历史 bug（v1.1.0）：曾用 useState 存 cam，宿主渲染器下该状态槽为 null →
+       首帧读 ui.cam 抛 TypeError、整块空白。改为纯 ref 后不依赖任何状态槽。
        数据：op=brain → {ids, regions:{id:{size,rep,events,nEvents}}, links:[[a,b,w]]} */
     function hash01(str) {
       var x = 2166136261
@@ -858,7 +880,7 @@ window.__ModuleLoader__.load({
     function BrainMap(props) {
       var canvasR = React.useRef(null)
       var tipR = React.useRef(null)
-      var posR = React.useRef(null)          // id → [x,y]
+      var posR = React.useRef(null)
       var camR = React.useRef({ x: 0, y: 0, k: 1 })
       var hoverR = React.useRef(null)
       var dragR = React.useRef(null)
@@ -879,12 +901,21 @@ window.__ModuleLoader__.load({
         if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
           canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr)
         }
+        // 令牌色（画布要具体值）
+        var C_BG = naoToken('--dsw-alias-bg-layer-1', '#141419')
+        var C_LINE = naoToken('--dsw-alias-border-l2', 'rgba(127,127,127,.20)')
+        var C_BRAND = naoToken('--dsw-alias-brand-primary', '#7c5cff')
+        var C_TX1 = naoToken('--dsw-alias-label-primary', '#e8e8ef')
+        var C_TX3 = naoToken('--dsw-alias-label-tertiary', '#7d7d8a')
         try { ctx.setTransform(dpr, 0, 0, dpr, 0, 0) } catch (_) { }
-        ctx.clearRect(0, 0, W, H)
+        // 实底：先铺底色（不再透出壁纸）
+        ctx.globalAlpha = 1
+        ctx.fillStyle = C_BG
+        ctx.fillRect(0, 0, W, H)
         var d = dataR.current, P = posR.current
         if (!d || !d.ids || !P) {
-          ctx.fillStyle = 'rgba(127,127,127,.55)'; ctx.font = '13px system-ui'
-          ctx.fillText(p0.empty || '载入脑区…', 24, 36)
+          ctx.fillStyle = C_TX3; ctx.font = '13px system-ui'
+          ctx.fillText(p0.empty || '载入脑区…', 20, 32)
           return
         }
         var cam = camR.current || { x: 0, y: 0, k: 1 }
@@ -893,47 +924,63 @@ window.__ModuleLoader__.load({
         ctx.scale(cam.k || 1, cam.k || 1)
         var hit = p0.hit || {}
         var hasHit = !!p0.hasHit
+        // 边（细、低对比）
+        ctx.strokeStyle = C_LINE
         ctx.lineWidth = 1
+        ctx.globalAlpha = 0.9
         ;(d.links || []).forEach(function (e) {
           var A = P[d.ids[e[0]]], B = P[d.ids[e[1]]]
           if (!A || !B) return
-          ctx.strokeStyle = 'rgba(124,92,255,' + Math.min(0.28, 0.04 + e[2] * 0.002) + ')'
           ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke()
         })
+        // 标签配额：只标注最大的 24 个区（悬停/命中不受限），否则小节点文字互相覆盖
+        var labelSet = {}
+        d.ids.slice().sort(function (a, b) {
+          return (((d.regions || {})[b] || {}).size || 0) - (((d.regions || {})[a] || {}).size || 0)
+        }).slice(0, 24).forEach(function (id) { labelSet[id] = 1 })
+        // 区节点
         d.ids.forEach(function (id) {
           var r = (d.regions && d.regions[id]) || { size: 1, rep: '' }
           var p = P[id]
           if (!p) return
-          var rad = Math.max(9, Math.sqrt(r.size || 1) * 6)
+          var rad = Math.max(8, Math.sqrt(r.size || 1) * 6)
           var hv = hit[id] || 0
           var dim = hasHit && !hv
-          var g = ctx.createRadialGradient(p[0], p[1], rad * 0.2, p[0], p[1], rad)
-          var base = 0.10 + 0.16 * hash01(id)
-          if (hv) {
-            g.addColorStop(0, 'rgba(124,92,255,' + (0.55 + 0.35 * hv) + ')')
-            g.addColorStop(1, 'rgba(124,92,255,0.05)')
-          } else {
-            g.addColorStop(0, 'rgba(124,92,255,' + (dim ? base * 0.5 : base + 0.10) + ')')
-            g.addColorStop(1, 'rgba(124,92,255,0.02)')
-          }
-          ctx.fillStyle = g
+          // 填充：品牌色低透明；命中升高
+          ctx.globalAlpha = dim ? 0.10 : (hv ? 0.34 + 0.28 * hv : 0.18)
+          ctx.fillStyle = C_BRAND
           ctx.beginPath(); ctx.arc(p[0], p[1], rad, 0, Math.PI * 2); ctx.fill()
-          if (hv) {
-            ctx.strokeStyle = 'rgba(124,92,255,' + (0.6 + 0.4 * hv) + ')'
-            ctx.lineWidth = 1.4; ctx.stroke()
-          }
+          // 描边：命中亮、普通中
+          ctx.globalAlpha = dim ? 0.22 : (hv ? 0.95 : 0.55)
+          ctx.strokeStyle = C_BRAND
+          ctx.lineWidth = hv ? 2 : 1.2
+          ctx.stroke()
+          // 标签：够大或悬停/命中才写，保证不糊
           var isHover = hoverR.current === id
-          if (rad > 22 || isHover || hv) {
-            ctx.fillStyle = hv ? 'rgba(255,255,255,.92)' : (isHover ? 'rgba(255,255,255,.85)' : 'rgba(200,200,215,.55)')
-            ctx.font = (rad > 34 ? 12 : 11) + 'px system-ui'
-            var label = String(r.rep || '').slice(0, rad > 34 ? 10 : 6)
-            if (label) ctx.fillText(label, p[0] - label.length * 3, p[1] + 4)
+          if (labelSet[id] || isHover || hv) {
+            ctx.globalAlpha = 1
+            ctx.fillStyle = (hv || isHover) ? C_TX1 : C_TX3
+            ctx.font = '12px system-ui'
+            var label = String(r.rep || (id || '')).replace(/\s+/g, ' ').slice(0, isHover ? 14 : 8)
+            if (label) {
+              var tw = ctx.measureText ? ctx.measureText(label).width : label.length * 6
+              if (isHover || hv) {
+                // 命中/悬停：文字下垫半透明底，白字可读
+                ctx.globalAlpha = 0.55
+                ctx.fillStyle = C_BG
+                ctx.fillRect(p[0] - tw / 2 - 3, p[1] - 8, tw + 6, 16)
+                ctx.globalAlpha = 1
+                ctx.fillStyle = C_TX1
+              }
+              ctx.fillText(label, p[0] - tw / 2, p[1] + 4)
+            }
           }
         })
+        ctx.globalAlpha = 1
         ctx.restore()
       }
 
-      // 布局：数据变化后跑一次力导向（纯计算，不碰状态）
+      // 布局：数据变化后跑一次力导向（纯计算）
       React.useEffect(function () {
         var d = props && props.data
         var ids = d && d.ids
@@ -941,7 +988,7 @@ window.__ModuleLoader__.load({
         var n = ids.length
         var P = ids.map(function (id, i) {
           var a = (i / n) * Math.PI * 2
-          var rr = 180 + 260 * hash01(id)
+          var rr = 160 + 240 * hash01(id)
           return [Math.cos(a) * rr, Math.sin(a) * rr]
         })
         var size = ids.map(function (id) { return Math.max(8, Math.sqrt(((d.regions || {})[id] || {}).size || 1) * 6) })
@@ -964,7 +1011,7 @@ window.__ModuleLoader__.load({
             var a = idx[e[0]], b = idx[e[1]]
             var ex = P[b][0] - P[a][0], ey = P[b][1] - P[a][1]
             var ed = Math.sqrt(ex * ex + ey * ey) + 1
-            var target = 90 + size[a] + size[b]
+            var target = 95 + size[a] + size[b]
             var ef = (ed - target) * 0.012 * Math.min(3, Math.sqrt(e[2]) * 0.4)
             F[a][0] += ex / ed * ef; F[a][1] += ey / ed * ef
             F[b][0] -= ex / ed * ef; F[b][1] -= ey / ed * ef
@@ -1018,7 +1065,7 @@ window.__ModuleLoader__.load({
         var best = null, bd = 1e9
         d.ids.forEach(function (id) {
           var p = P[id]; if (!p) return
-          var rad = Math.max(9, Math.sqrt((((d.regions || {})[id] || {}).size) || 1) * 6)
+          var rad = Math.max(8, Math.sqrt((((d.regions || {})[id] || {}).size) || 1) * 6)
           var ddx = p[0] - w[0], ddy = p[1] - w[1]
           var dd = ddx * ddx + ddy * ddy
           if (dd < rad * rad && dd < bd) { bd = dd; best = id }
@@ -1035,7 +1082,7 @@ window.__ModuleLoader__.load({
         tip.style.display = 'block'
         tip.style.left = (mx + 14) + 'px'
         tip.style.top = (my + 12) + 'px'
-        tip.textContent = String(r.rep || '（无代表句）').slice(0, 48) + ' · ' + (r.size || 0) + ' 元记忆'
+        tip.textContent = String(r.rep || '（无代表句）').slice(0, 48) + ' · ' + (r.size || 0) + ' 元记忆 · ' + (r.nEvents || 0) + ' 事件'
       }
 
       return h('div', { className: 'nao-mapH' },
@@ -1085,7 +1132,7 @@ window.__ModuleLoader__.load({
         h('div', { className: 'nao-tip', ref: tipR, style: { display: 'none' } }))
     }
 
-    /* ══ 脑图视图：地形 + 检索 ═══════════════════════════════════════════ */
+    /* ══ 脑图视图：工具条 + 地形卡 + 右侧结果/详情 ═══════════════════════════ */
     function AtlasView(props) {
       var bs = React.useState(function () { return { loading: true, ids: null } })
       var brain = bs[0] || { loading: true, ids: null }
@@ -1127,7 +1174,6 @@ window.__ModuleLoader__.load({
         }).catch(function (e) { setEntry({ loading: false, source: src, error: String(e) }) })
       }
 
-      // 命中区映射：检索结果 → 事件所在盆 → 命中强度（按名次衰减）
       var hit = {}
       var hasHit = false
       var rows = res.rows || []
@@ -1148,57 +1194,65 @@ window.__ModuleLoader__.load({
       var nEntries = props && props.count ? props.count : 0
 
       return h('div', { className: 'nao-atlas' },
-        h('div', { className: 'nao-mapWrap' },
+        // 工具条（常规流，不叠画布）
+        h('div', { className: 'nao-toolbar' },
+          h('input', {
+            className: 'nao-search', type: 'text', value: qtext,
+            placeholder: '在脑中检索：输入任意问题，回车',
+            onChange: function (e) { setQtext(e.target.value) },
+            onKeyDown: function (e) { if (e.key === 'Enter') runSearch() },
+          }),
+          h('button', { className: 'nao-go', type: 'button', onClick: runSearch, disabled: res.busy }, res.busy ? '检索中…' : '检索'),
+          res.q ? h('button', { className: 'nao-clear', type: 'button', onClick: function () { setQtext(''); setRes({ busy: false, rows: [], q: '' }) } }, '清除') : null),
+        // 画布卡
+        h('div', { className: 'nao-canvasCard' },
           h(PanelBoundary, null,
             h(BrainMap, {
               data: brain.ids ? brain : null, hit: hit, hasHit: hasHit,
               onPick: function (id) { setPickId(id); setEntry(null) },
               empty: brain.error || (brain.loading ? '载入脑区…' : '无脑区'),
-            })),
-          h('div', { className: 'nao-searchBar' },
-            h('input', {
-              className: 'nao-search', type: 'text', value: qtext,
-              placeholder: '在脑中检索：输入任意问题，回车',
-              onChange: function (e) { setQtext(e.target.value) },
-              onKeyDown: function (e) { if (e.key === 'Enter') runSearch() },
-            }),
-            h('button', { className: 'nao-go', type: 'button', onClick: runSearch, disabled: res.busy }, res.busy ? '检索中' : '检索'),
-            res.q ? h('button', { className: 'nao-clear', type: 'button', onClick: function () { setQtext(''); setRes({ busy: false, rows: [], q: '' }) } }, '清除') : null),
-          h('div', { className: 'nao-foot' },
-            h('span', null, (nEntries ? nEntries + ' 元事件' : '—') + ' · ' + ((brain.ids && brain.ids.length) || 0) + ' 脑区'),
-            h('span', { className: 'nao-footR' },
-              h('button', { className: 'nao-mini', type: 'button', onClick: loadBrain }, '重绘')))),
+            }))),
+        h('div', { className: 'nao-foot' },
+          h('span', null, (nEntries ? nEntries + ' 元事件' : '—') + ' · ' + ((brain.ids && brain.ids.length) || 0) + ' 脑区 · 拖拽平移 / 滚轮缩放 / 点击脑区下钻'),
+          h('span', { className: 'nao-footR' },
+            h('button', { className: 'nao-mini', type: 'button', onClick: loadBrain }, '重绘'))),
 
+        // 右列：检索结果 / 区详情 / 条目详情
         res.q ? h('div', { className: 'nao-side' },
-          h('div', { className: 'nao-sideHead' }, '检索 · ' + res.q, h('span', { className: 'nao-dim' }, rows.length ? ' ' + rows.length + ' 条' : '')),
-          res.error ? h('div', { className: 'nao-err' }, res.error) : null,
-          !res.busy && !rows.length && !res.error ? h('div', { className: 'nao-dim nao-pad' }, '无结果') : null,
-          rows.map(function (r) {
-            return h('button', {
-              key: r.source, type: 'button', className: 'nao-hit', onClick: function () { openEntry(r.source) },
-            },
-              h('div', { className: 'nao-hitHead' }, String(r.head || '').split('\n')[0].slice(0, 60)),
-              h('div', { className: 'nao-bars' },
-                [['S', r.S], ['K', r.K], ['B', r.B]].map(function (b) {
-                  return h('div', { key: b[0], className: 'nao-bar' },
-                    h('span', { className: 'nao-barL' }, b[0]),
-                    h('i', { style: { width: Math.round(100 * Math.max(0, Math.min(1, b[1] || 0))) + '%' } }))
-                })),
-              h('div', { className: 'nao-hitMeta' }, String(r.source).slice(0, 26) + ' · ' + (r.total || 0)))
-          })) : null,
+          h('div', { className: 'nao-sideHead' }, '检索结果', h('span', { className: 'nao-dim' }, rows.length ? rows.length + ' 条' : ''),
+            h('button', { className: 'nao-mini', type: 'button', onClick: function () { setQtext(''); setRes({ busy: false, rows: [], q: '' }) } }, '关闭')),
+          h('div', { className: 'nao-sideScroll' },
+            res.error ? h('div', { className: 'nao-err' }, res.error) : null,
+            !res.busy && !rows.length && !res.error ? h('div', { className: 'nao-dim nao-pad' }, '无结果') : null,
+            rows.map(function (r) {
+              return h('button', {
+                key: r.source, type: 'button', className: 'nao-hit', onClick: function () { openEntry(r.source) },
+              },
+                h('div', { className: 'nao-hitHead' }, String(r.head || '').split('\n')[0].slice(0, 60)),
+                h('div', { className: 'nao-bars' },
+                  [['S', r.S, '语义'], ['K', r.K, '词面'], ['B', r.B, '血缘']].map(function (b) {
+                    var pct = Math.round(100 * Math.max(0, Math.min(1, b[1] || 0)))
+                    return h('div', { key: b[0], className: 'nao-bar', title: b[2] + ' ' + pct + '%' },
+                      h('span', { className: 'nao-barL' }, b[0]),
+                      h('i', null, h('b', { style: { width: pct + '%' } })))
+                  })),
+                h('div', { className: 'nao-hitMeta' }, String(r.source).slice(0, 28) + ' · 总分 ' + (r.total || 0)))
+            }))) : null,
 
         region && !res.q ? h('div', { className: 'nao-side' },
-          h('div', { className: 'nao-sideHead' }, '脑区', h('button', { className: 'nao-mini', type: 'button', onClick: function () { setPickId(null) } }, '关闭')),
-          h('div', { className: 'nao-rep' }, region.rep || '（无代表句）'),
-          h('div', { className: 'nao-dim nao-pad' }, (region.size || 0) + ' 元记忆 · ' + (region.nEvents || 0) + ' 元事件'),
-          (region.events || []).map(function (ev) {
-            return h('button', { key: ev, type: 'button', className: 'nao-evRow', onClick: function () { openEntry(ev) } },
-              String(ev).slice(0, 40))
-          })) : null,
+          h('div', { className: 'nao-sideHead' }, '脑区详情',
+            h('button', { className: 'nao-mini', type: 'button', onClick: function () { setPickId(null) } }, '关闭')),
+          h('div', { className: 'nao-sideScroll' },
+            h('div', { className: 'nao-rep' }, region.rep || '（无代表句）'),
+            h('div', { className: 'nao-dim nao-pad' }, (region.size || 0) + ' 元记忆 · ' + (region.nEvents || 0) + ' 元事件'),
+            (region.events || []).map(function (ev) {
+              return h('button', { key: ev, type: 'button', className: 'nao-evRow', onClick: function () { openEntry(ev) } },
+                String(ev))
+            }))) : null,
 
         entry ? h('div', { className: 'nao-detail' },
           h('div', { className: 'nao-sideHead' },
-            h('span', null, String(entry.source || '').slice(0, 40)),
+            h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis' } }, String(entry.source || '').slice(0, 32)),
             h('button', { className: 'nao-mini', type: 'button', onClick: function () { setEntry(null) } }, '关闭')),
           entry.loading ? h('div', { className: 'nao-dim nao-pad' }, '载入…')
             : entry.error ? h('div', { className: 'nao-err' }, entry.error)
@@ -1227,13 +1281,13 @@ window.__ModuleLoader__.load({
               h('div', { className: 'nao-statV' }, String(c[1])),
               h('div', { className: 'nao-statL' }, c[0]))
           })),
-        s.error ? h('div', { className: 'nao-err nao-pad' }, s.error) : null,
+        s.error ? h('div', { className: 'nao-err' }, s.error) : null,
         h('div', { className: 'nao-stream' },
           items.map(function (it) {
             return h('div', { key: it.source, className: 'nao-srow' },
               h('div', { className: 'nao-stime' }, String(it.grewAt || '').replace('T', ' ').slice(5, 16)),
               h('div', { className: 'nao-smain' },
-                h('div', { className: 'nao-shead' }, String(it.head || '').split('\n')[0].slice(0, 70)),
+                h('div', { className: 'nao-shead', title: String(it.head || '') }, String(it.head || '').split('\n')[0].slice(0, 90)),
                 h('div', { className: 'nao-smeta' },
                   h('span', { className: 'nao-chip' + (it.mm ? '' : ' is-warn') }, it.mm ? it.mm + ' 句' : '未睡眠'),
                   it.basin ? h('span', { className: 'nao-chip' }, '区 ' + String(it.basin).slice(0, 14) + (it.basinSize ? ' ·' + it.basinSize : '')) : null,
@@ -1256,6 +1310,7 @@ window.__ModuleLoader__.load({
       }, [])
       React.useEffect(function () { loadTree() }, [loadTree])
       var back = props && (props.back || props.backToConversation)
+      var TITLE = { brain: '脑图', sleep: '睡眠', pipe: '入库', settings: '设置' }
       return h('div', { className: 'nao-app' },
         h('div', { className: 'nao-rail' },
           [['brain', '脑图', 'M12 3.6c2 0 3.6 1.6 3.6 3.6S14 10.8 12 10.8 8.4 9.2 8.4 7.2 10 3.6 12 3.6Zm0 9.6c3.3 0 6 1.6 6 3.6v3.6H6V16.8c0-2 2.7-3.6 6-3.6Z'],
@@ -1273,7 +1328,7 @@ window.__ModuleLoader__.load({
           })),
         h('div', { className: 'nao-main' },
           h('div', { className: 'nao-top' },
-            h('span', { className: 'nao-title' }, view === 'brain' ? '脑图' : view === 'sleep' ? '睡眠 · 入库即组织' : view === 'pipe' ? '入库管线' : '设置'),
+            h('span', { className: 'nao-title' }, TITLE[view] || '脑图'),
             h('span', { className: 'nao-spacer' }),
             h('span', { className: 'nao-count' }, tree.error ? '服务异常' : (tree.loading ? '载入中…' : (tree.count || 0) + ' 条')),
             h('button', { className: 'nao-mini', type: 'button', onClick: loadTree }, '刷新'),

@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-export const PLUGIN_VERSION = '1.1.1'
+export const PLUGIN_VERSION = '1.1.2'
 export const TOOL_NAME = '_dsh_external_dsh_naotu'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/Feng'
