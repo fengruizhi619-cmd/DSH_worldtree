@@ -299,6 +299,7 @@ window.__ModuleLoader__.load({
       '.nao-detail{flex:1;min-height:0;display:flex;flex-direction:column}',
       '.nao-detailBody{flex:1;overflow:auto;padding:12px 14px;font-size:13px;line-height:1.7;color:var(--dsw-alias-label-secondary,#5c5c66)}',
       '.nao-detailMeta{font-size:11px;line-height:1.6;color:var(--dsw-alias-label-tertiary,#8a8a95);margin:-4px 0 10px;word-break:break-all}',
+      '.nao-rename{display:flex;gap:6px;padding:0 14px 10px}',
       '.nao-rep{font-size:13px;line-height:1.6;color:var(--dsw-alias-label-primary,#1b1b1f);padding:10px 12px;margin:10px 12px 4px;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.08))}',
       '.nao-evRow{display:block;width:calc(100% - 24px);margin:0 12px 6px;text-align:left;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;padding:7px 8px;font:inherit;font-size:12px;color:var(--dsw-alias-label-secondary,#5c5c66);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.nao-evRow:hover{background:var(--dsw-alias-bg-layer-2,#f2f2f4);color:var(--dsw-alias-label-primary,#1b1b1f)}',
@@ -972,7 +973,7 @@ window.__ModuleLoader__.load({
           if (shown >= 14) return
           var p = pos[id]; if (!p || p.r < 17) return
           var reg = (data.regions || {})[id] || {}
-          var nm = String(reg.label || reg.rep || '').replace(/\s+/g, '').slice(0, 8) || String(id).slice(-6)
+          var nm = String(reg.label || reg.rep || '').replace(/\s+/g, '').slice(0, 10) || String(id).slice(-6)
           var h = hit[id] || 0
           ctx.font = (h ? '600 ' : '') + '11px system-ui'
           var w = ctx.measureText(nm).width
@@ -1063,6 +1064,10 @@ window.__ModuleLoader__.load({
       var pickId = ds[0], setPickId = ds[1]
       var es = React.useState(null)
       var entry = es[0], setEntry = es[1]
+      var ns = React.useState('')
+      var renameText = ns[0], setRenameText = ns[1]
+      var nbs = React.useState(false)
+      var renameBusy = nbs[0], setRenameBusy = nbs[1]
 
       var loadBrain = React.useCallback(function () {
         setBrain({ loading: true })
@@ -1148,9 +1153,27 @@ window.__ModuleLoader__.load({
             })))
       } else if (region) {
         right = h('div', { style: { display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 } },
-          h('div', { className: 'nao-sideHead' }, '脑区',
+          h('div', { className: 'nao-sideHead' }, (region.num || '脑区') + (region.name ? ' · ' + region.name : ''),
             h('span', { className: 'nao-spacer' }),
             h('button', { className: 'nao-btn', type: 'button', onClick: function () { setPickId(null) } }, '关闭')),
+          h('div', { className: 'nao-rename' },
+            h('input', {
+              className: 'nao-input', type: 'text', maxLength: 24,
+              placeholder: (region.num || '') + ' 改名（留空恢复编号）', value: renameText,
+              onChange: function (e) { setRenameText(e.target.value) },
+            }),
+            h('button', {
+              className: 'nao-btn primary', type: 'button', disabled: renameBusy || !renameText.trim(),
+              onClick: function () {
+                setRenameBusy(true)
+                opGet('region_rename', { basin: pickId, name: renameText.trim() }).then(function (j) {
+                  setRenameBusy(false)
+                  if (j && j.ok) { setRenameText(''); loadBrain() }
+                  else setRenameBusy(false)
+                }).catch(function () { setRenameBusy(false) })
+              },
+            }, renameBusy ? '保存中' : '保存'))
+          ,
           h('div', { className: 'nao-rep' }, String(region.rep || '（该区没有代表句）').slice(0, 160)),
           h('div', { className: 'nao-dim nao-pad' }, naoSize(region) + ' 元记忆 · ' + (region.nEvents || 0) + ' 元事件'),
           h('div', { className: 'nao-sideScroll' },

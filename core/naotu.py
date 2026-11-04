@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS mm_region (basin TEXT PRIMARY KEY, size INTEGER, rep 
 CREATE TABLE IF NOT EXISTS mm_knn (mm_id TEXT PRIMARY KEY, nbrs TEXT);  -- JSON 数组
 CREATE TABLE IF NOT EXISTS mm_link (a TEXT, b TEXT, cos REAL, PRIMARY KEY(a,b));  -- 睡眠近合并
 CREATE TABLE IF NOT EXISTS entry_region (event TEXT PRIMARY KEY, basin TEXT, coverage REAL);
+CREATE TABLE IF NOT EXISTS region_alias (basin TEXT PRIMARY KEY, code INTEGER UNIQUE, name TEXT, updated_at TEXT);  -- 脑区显示编号 #0001 与人工命名
 CREATE INDEX IF NOT EXISTS idx_memberships_node ON memberships(node_id);
 CREATE INDEX IF NOT EXISTS idx_nodes_parent ON nodes(parent_id);
 """
@@ -1628,8 +1629,55 @@ def _cli():
                 _k = (_a, _b2) if _a < _b2 else (_b2, _a)
                 _cnt[_k] = _cnt.get(_k, 0) + 1
         _links = sorted(([k[0], k[1], v] for k, v in _cnt.items()), key=lambda z: -z[2])[:240]
+        # 脑区编号与人工命名（2026-11-04）：每个区拿一个持久十进制编号，#0001 起；
+        # 人工改的名字存在 region_alias.name，显示优先级 name > #code。
+        _al = {r[0]: (r[1], r[2]) for r in _c4.execute(
+            "SELECT basin, code, name FROM region_alias")}
+        _next = _c4.execute("SELECT COALESCE(MAX(code), 0) FROM region_alias").fetchone()[0]
+        _now = datetime.datetime.now().isoformat(timespec="seconds")
+        _newrows = []
+        for _b in _ids:
+            if _b not in _al:
+                _next += 1
+                _al[_b] = (_next, None)
+                _newrows.append((_b, _next, None, _now))
+        if _newrows:
+            _c4.executemany(
+                "INSERT OR IGNORE INTO region_alias(basin, code, name, updated_at) VALUES(?,?,?,?)",
+                _newrows)
+            _c4.commit()
+        for _b, _v in _reg.items():
+            _cd, _nm = _al.get(_b, (0, None))
+            _v["code"] = _cd
+            _v["name"] = _nm or ""
+            _v["num"] = "#%04d" % _cd if _cd else ""
+            _v["label"] = _nm or (_v["num"] or _v.get("label") or "")
         _c4.close()
         out = {"ok": True, "ids": _ids, "regions": _reg, "links": _links}
+    elif op == "region_rename":
+        # 脑区人工命名：basin 必填；name 最长 24 字，空串=恢复 #编号显示
+        _b3 = str(req.get("basin") or "").strip()
+        if not _b3:
+            out = {"ok": False, "error": "region_rename 需要 basin"}
+        else:
+            _nm3 = str(req.get("name") or "").strip()[:24]
+            _c5 = sqlite3.connect(db)
+            _row3 = _c5.execute("SELECT code FROM region_alias WHERE basin=?", (_b3,)).fetchone()
+            if _row3 is None:
+                _mx = _c5.execute("SELECT COALESCE(MAX(code), 0) FROM region_alias").fetchone()[0]
+                _c5.execute(
+                    "INSERT INTO region_alias(basin, code, name, updated_at) VALUES(?,?,?,?)",
+                    (_b3, _mx + 1, _nm3 or None,
+                     datetime.datetime.now().isoformat(timespec="seconds")))
+                _cd3 = _mx + 1
+            else:
+                _cd3 = _row3[0]
+                _c5.execute("UPDATE region_alias SET name=?, updated_at=? WHERE basin=?",
+                            (_nm3 or None, datetime.datetime.now().isoformat(timespec="seconds"), _b3))
+            _c5.commit()
+            _c5.close()
+            out = {"ok": True, "basin": _b3, "code": _cd3, "name": _nm3,
+                   "num": "#%04d" % _cd3}
     elif op == "mm_backfill_gap":
         # 空窗回填：补跑「有 entry 无 mm」的睡眠（插入时嵌入失败/超时的兜底）
         _lim = max(1, min(500, int(req.get("limit") or 120)))

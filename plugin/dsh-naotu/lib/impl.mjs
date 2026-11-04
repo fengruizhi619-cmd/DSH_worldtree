@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-export const PLUGIN_VERSION = '1.1.5'
+export const PLUGIN_VERSION = '1.1.6'
 export const TOOL_NAME = '_dsh_external_dsh_naotu'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/Feng'
@@ -211,7 +211,7 @@ async function embed(cfg, texts) {
 export const PANEL_ID = 'liubianwiki'
 export const ROUTE_PATH = '/api/liubian-wiki'
 export const CONTRACT_VERSION = '1.0'
-const WIKI_OPS = ['health', 'tree', 'get', 'find', 'diary_tree', 'diary_list', 'diary_get', 'uploads', 'wt_tree', 'tag_table', 'tag_filter', 'entry_tags', 'entry_get', 'graph_view', 'dream', 'insert', 'p3_status', 'settings_get', 'settings_save', 'brain', 'recent', 'stats', 'mm_stats', 'mm_backfill_gap', 'race']
+const WIKI_OPS = ['health', 'tree', 'get', 'find', 'diary_tree', 'diary_list', 'diary_get', 'uploads', 'wt_tree', 'tag_table', 'tag_filter', 'entry_tags', 'entry_get', 'graph_view', 'dream', 'insert', 'p3_status', 'settings_get', 'settings_save', 'brain', 'recent', 'stats', 'mm_stats', 'mm_backfill_gap', 'race', 'region_rename']
 
 function wikiSendJson(res, status, obj) {
   try {
@@ -462,6 +462,14 @@ function wikiMountPanelRoutes(ctx, cfg) {
                 const e = await embed(cfg, [text])
                 if (e.ok) rq.vecs = e.vectors[0]          // 嵌入失败 → 纯 K/B 降级（树核 vecs 缺席 S=0）
                 const r = await callCore(cfg, rq)
+                wikiSendJson(res, r.ok ? 200 : 503, r.ok ? r.data : { ok: false, error: r.error })
+                return
+              }
+              if (op === 'region_rename') {
+                // 脑区人工改名：basin 必填，name 空串=恢复 #编号
+                const basin = String(params.basin || '').trim()
+                if (!basin) { wikiSendJson(res, 400, { ok: false, error: 'region_rename 需要 basin' }); return }
+                const r = await callCore(cfg, { op, basin, name: String(params.name || '').trim().slice(0, 24) })
                 wikiSendJson(res, r.ok ? 200 : 503, r.ok ? r.data : { ok: false, error: r.error })
                 return
               }
