@@ -1489,6 +1489,75 @@ def _cli():
                "entry_region": _c3.execute("SELECT COUNT(*) FROM entry_region").fetchone()[0],
                "links": _c3.execute("SELECT COUNT(*) FROM mm_link").fetchone()[0]}
         _c3.close()
+    elif op == "brain":
+        # 脑区总览（UI 用）：按规模 topN 盆 + 盆间 kNN 跨区边（mm_knn 为 JSON 邻接表）
+        _topn = max(20, min(400, int(req.get("topn") or 120)))
+        _c4 = sqlite3.connect(db)
+        _rows = _c4.execute(
+            "SELECT m.region, COUNT(*) c FROM mm m WHERE m.region IS NOT NULL "
+            "GROUP BY m.region ORDER BY c DESC LIMIT ?", (_topn,)).fetchall()
+        _ids = [r[0] for r in _rows]
+        _idx = {b: i for i, b in enumerate(_ids)}
+        _reg = {}
+        for _b, _c in _rows:
+            _rep = _c4.execute("SELECT text FROM mm WHERE region=? LIMIT 1", (_b,)).fetchone()
+            _evs = _c4.execute(
+                "SELECT DISTINCT event FROM mm WHERE region=? LIMIT 8", (_b,)).fetchall()
+            _reg[_b] = {"id": _b, "size": _c,
+                        "rep": (_rep[0][:44] if _rep else ""),
+                        "events": [e[0] for e in _evs], "nEvents": len(_evs)}
+        # 跨区边：统计 mm_knn 中两端落在 topn 盆且盆不同的对
+        _cnt = {}
+        _mmreg = dict(_c4.execute("SELECT mm_id, region FROM mm WHERE region IS NOT NULL"))
+        for _mid, _nb in _c4.execute("SELECT mm_id, nbrs FROM mm_knn"):
+            _a = _idx.get(_mmreg.get(_mid))
+            if _a is None:
+                continue
+            try:
+                _nbl = json.loads(_nb)
+            except Exception:
+                continue
+            for _x in _nbl:
+                _b2 = _idx.get(_mmreg.get(_x))
+                if _b2 is None or _b2 == _a:
+                    continue
+                _k = (_a, _b2) if _a < _b2 else (_b2, _a)
+                _cnt[_k] = _cnt.get(_k, 0) + 1
+        _links = sorted(([k[0], k[1], v] for k, v in _cnt.items()), key=lambda z: -z[2])[:240]
+        _c4.close()
+        out = {"ok": True, "ids": _ids, "regions": _reg, "links": _links}
+    elif op == "mm_backfill_gap":
+        # 空窗回填：补跑「有 entry 无 mm」的睡眠（插入时嵌入失败/超时的兜底）
+        _lim = max(1, min(500, int(req.get("limit") or 120)))
+        _cg = sqlite3.connect(db)
+        _miss = _cg.execute(
+            "SELECT e.source, e.head, e.body FROM entries e "
+            "WHERE NOT EXISTS (SELECT 1 FROM mm m WHERE m.event = e.source) "
+            "ORDER BY e.grew_at LIMIT ?", (_lim,)).fetchall()
+        _cg.close()
+        _done = 0; _fail = []
+        for _s, _h, _b in _miss:
+            _r = sleep_insert(db, _s, (_h or "") + chr(10) + (_b or ""), embed_url=req.get("embedUrl"))
+            if _r.get("ok"):
+                _done += 1
+            else:
+                _fail.append(_s)
+        out = {"ok": True, "filled": _done, "failed": _fail[:10]}
+    elif op == "recent":
+        _n = max(1, min(200, int(req.get("n") or 40)))
+        _c5 = sqlite3.connect(db)
+        _rs = _c5.execute(
+            "SELECT e.source, e.head, e.grew_at, (SELECT basin FROM entry_region x WHERE x.event=e.source), "
+            "(SELECT COUNT(*) FROM mm m WHERE m.event=e.source) "
+            "FROM entries e ORDER BY e.grew_at DESC LIMIT ?", (_n,)).fetchall()
+        _out = []
+        for _s, _h, _g, _b, _m in _rs:
+            _tg = [t for (t,) in _c5.execute("SELECT tag FROM tags WHERE source=? LIMIT 8", (_s,))]
+            _sz = _c5.execute("SELECT COUNT(*) FROM mm WHERE region=?", (_b,)).fetchone()[0] if _b else 0
+            _out.append({"source": _s, "head": (_h or "")[:80], "grewAt": str(_g or ""),
+                         "basin": _b, "mm": _m, "basinSize": _sz, "tags": _tg})
+        _c5.close()
+        out = {"ok": True, "items": _out}
     else:
         out = {"error": "未知 op：" + str(op)}
     json.dump(out, sys.stdout, ensure_ascii=False)

@@ -1,6 +1,8 @@
-// 流变·记忆 面板（client）—— v0.10.0 三页 IA：
-//  - 脑图（默认）：全局梦簇网图（点击下钻簇内成员）+ 常驻检索（结果可切 条目|网图）+ 经典树目录切换
-//  - 入库：P3 自动管线（压缩→提炼→入树）+ 手动入库 + 提交台账（做梦卡退休——做梦=脑图本体）
+// 脑图（naotu）面板 —— v1.1.0 脑图隐喻 UI：
+//  - 脑图（默认）：脑区地形图（力导向，区=吸引盆）+ 顶部常驻检索 + 命中区高亮
+//                 + 检索结果列（S/K/B 三条细条）+ 区详情 + 元事件正文详情
+//  - 睡眠：入库即组织（元记忆/脑区统计 + 最近入睡流）
+//  - 入库：P3 自动管线（压缩→提炼→入库）+ 手动入库 + 提交台账
 //  - 设置：元数据驱动渲染（后端新增参数自动出现）
 //  - 数据：插件宿主路由 /api/liubian-wiki（纯读），树核写操作走 helper 子进程
 window.__ModuleLoader__.load({
@@ -14,30 +16,7 @@ window.__ModuleLoader__.load({
     var PANEL_ID = 'liubianwiki'
     var PANEL_LABEL = '脑图'
     var API = '/api/liubian-wiki'
-    // 旧日记归档族的根 slug（记忆侧导入时定的）——树里它以 title「日记」出现。
-    // 检索「范围」开关与"源枝去重"都靠它（见 runSearch / 日记源枝）。
-    var DIARY_FAMILY = '日记'
-
-    var MODES = [
-      { id: 'hybrid', label: '融合', hint: '语义 + 字面（字面命中抬升）' },
-      { id: 'semantic', label: '语义', hint: '向量：查询 vs 条目简介锚' },
-      { id: 'keyword', label: '关键词', hint: '字面：标题/简介/正文/slug/路径' },
-    ]
-    var STATUSES = [
-      { id: '', label: '全部' },
-      { id: 'stable', label: 'stable' },
-      { id: 'draft', label: 'draft' },
-      { id: 'obsolete', label: 'obsolete' },
-    ]
-    // 检索范围：现在记忆是**三层**——策展条目（人写的）／精华条目（从日记提炼）／日记原料（逐篇导入）。
-    // 真正该切的一刀是「知识 vs 原料」：原料上万条会把知识挤下去。
-    // 过滤走**服务端**（helper 的 familyPrefix / excludeFamilyPrefix）。
-    var SCOPES = [
-      { id: 'all', label: '全部', hint: '策展 + 精华 + 日记原料' },
-      { id: 'wiki', label: '不含原料', hint: '排除 日记/ 原料族（只看策展与精华）' },
-      { id: 'diary', label: '仅原料', hint: '只看 日记/ 原料族' },
-    ]
-    var STATUS_COLOR = { stable: '#16a34a', draft: '#d97706', obsolete: '#9ca3af' }
+    var DIARY_FAMILY = '日记'   // 旧日记归档族根 slug（scopeParams 用）
 
     var CSS = [
       /* ══ 原生风格重写（2026-10-18）：全部配方提取自宿主前端
@@ -263,6 +242,74 @@ window.__ModuleLoader__.load({
       '.lbm-chooseBtn{display:block;width:100%;text-align:left;background:var(--dsw-alias-bg-layer-1);border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-md,8px);cursor:pointer;font:inherit;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary);padding:7px 10px;margin-bottom:6px}',
       '.lbm-chooseBtn:hover{background:var(--dsw-alias-interactive-bg-hover)}',
     ]
+    /* ══ 脑图 v1 · 新壳样式（nao- 前缀；令牌全部走宿主 var(--dsw-alias-*)）══ */
+    var NAO_CSS = [
+      '.nao-app{display:flex;height:100%;min-height:0;background:var(--dsw-alias-bg-primary,#101014);color:var(--dsw-alias-label-primary,#e8e8ef)}',
+      '.nao-rail{width:56px;flex:none;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0;border-right:1px solid var(--dsw-alias-border-secondary,rgba(127,127,127,.14))}',
+      '.nao-railBtn{width:48px;border:0;background:transparent;color:var(--dsw-alias-label-secondary,#9a9aa8);display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;border-radius:10px;font-size:10px;cursor:pointer;line-height:1}',
+      '.nao-railBtn:hover{background:rgba(124,92,255,.10);color:var(--dsw-alias-label-primary,#e8e8ef)}',
+      '.nao-railBtn.is-on{color:var(--dsw-alias-brand-primary,#7c5cff);background:rgba(124,92,255,.14)}',
+      '.nao-main{flex:1;min-width:0;display:flex;flex-direction:column}',
+      '.nao-top{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--dsw-alias-border-secondary,rgba(127,127,127,.14))}',
+      '.nao-title{font-weight:600;font-size:13px}',
+      '.nao-spacer{flex:1}',
+      '.nao-count{font-size:11px;color:var(--dsw-alias-label-secondary,#8b8b99)}',
+      '.nao-mini{border:1px solid var(--dsw-alias-border-secondary,rgba(127,127,127,.22));background:transparent;color:var(--dsw-alias-label-secondary,#9a9aa8);font-size:11px;padding:2px 8px;border-radius:7px;cursor:pointer}',
+      '.nao-mini:hover{color:var(--dsw-alias-brand-primary,#7c5cff);border-color:rgba(124,92,255,.5)}',
+      '.nao-body{flex:1;min-height:0;display:flex;position:relative}',
+      // 脑图
+      '.nao-atlas{flex:1;min-width:0;display:flex;position:relative}',
+      '.nao-mapWrap{position:relative;flex:1;min-width:0}',
+      '.nao-mapH{position:absolute;inset:0}',
+      '.nao-map{width:100%;height:100%;display:block;cursor:grab}',
+      '.nao-map:active{cursor:grabbing}',
+      '.nao-searchBar{position:absolute;top:12px;left:12px;right:12px;display:flex;gap:6px;align-items:center;z-index:3}',
+      '.nao-search{flex:1;height:34px;padding:0 12px;border-radius:10px;border:1px solid var(--dsw-alias-border-secondary,rgba(127,127,127,.25));background:rgba(16,16,24,.62);color:inherit;font-size:13px;outline:none;backdrop-filter:blur(6px)}',
+      '.nao-search:focus{border-color:rgba(124,92,255,.65)}',
+      '.nao-go,.nao-clear{height:34px;padding:0 12px;border-radius:10px;border:0;cursor:pointer;font-size:12px}',
+      '.nao-go{background:var(--dsw-alias-brand-primary,#7c5cff);color:#fff}',
+      '.nao-go:disabled{opacity:.6;cursor:default}',
+      '.nao-clear{background:rgba(127,127,127,.14);color:var(--dsw-alias-label-secondary,#9a9aa8)}',
+      '.nao-foot{position:absolute;bottom:8px;left:14px;right:14px;display:flex;justify-content:space-between;font-size:11px;color:var(--dsw-alias-label-secondary,#8b8b99);z-index:2;pointer-events:none}',
+      '.nao-footR{pointer-events:auto}',
+      '.nao-tip{position:absolute;left:14px;bottom:30px;max-width:340px;padding:8px 10px;border-radius:9px;background:rgba(12,12,20,.88);border:1px solid rgba(124,92,255,.35);z-index:4;pointer-events:none}',
+      '.nao-tipHead{font-size:12px;line-height:1.4;color:#e8e8ef}',
+      '.nao-tipMeta{font-size:10px;color:#9a9aa8;margin-top:3px}',
+      '.nao-side{width:300px;flex:none;border-left:1px solid var(--dsw-alias-border-secondary,rgba(127,127,127,.14));overflow:auto;padding:10px}',
+      '.nao-sideHead{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;font-weight:600;margin-bottom:8px}',
+      '.nao-hit{display:block;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid rgba(127,127,127,.10);padding:8px 4px;cursor:pointer;color:inherit}',
+      '.nao-hit:hover{background:rgba(124,92,255,.08)}',
+      '.nao-hitHead{font-size:12px;line-height:1.45}',
+      '.nao-bars{display:flex;gap:8px;margin-top:5px}',
+      '.nao-bar{flex:1;display:flex;align-items:center;gap:4px;font-size:9px;color:var(--dsw-alias-label-secondary,#8b8b99)}',
+      '.nao-barL{flex:none;width:8px}',
+      '.nao-bar i{display:block;height:3px;border-radius:2px;background:var(--dsw-alias-brand-primary,#7c5cff);min-width:1px}',
+      '.nao-hitMeta{font-size:10px;color:var(--dsw-alias-label-secondary,#8b8b99);margin-top:5px}',
+      '.nao-rep{font-size:12px;line-height:1.55;padding:8px 10px;border-radius:9px;background:rgba(127,127,127,.08);margin-bottom:8px}',
+      '.nao-evRow{display:block;width:100%;text-align:left;border:0;background:transparent;color:inherit;font-size:11px;padding:5px 6px;border-radius:6px;cursor:pointer}',
+      '.nao-evRow:hover{background:rgba(124,92,255,.10)}',
+      '.nao-detail{width:360px;flex:none;border-left:1px solid var(--dsw-alias-border-secondary,rgba(127,127,127,.14));overflow:auto;padding:12px}',
+      '.nao-detailHead{font-size:13px;font-weight:600;margin-bottom:10px;line-height:1.45}',
+      '.nao-detailBody{font-size:12.5px;line-height:1.68}',
+      // 睡眠
+      '.nao-sleep{flex:1;min-width:0;overflow:auto;padding:14px}',
+      '.nao-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}',
+      '.nao-stat{border:1px solid var(--dsw-alias-border-secondary,rgba(127,127,127,.18));border-radius:10px;padding:10px 12px;background:rgba(127,127,127,.05)}',
+      '.nao-statV{font-size:20px;font-weight:600;letter-spacing:-.02em}',
+      '.nao-statL{font-size:11px;color:var(--dsw-alias-label-secondary,#8b8b99);margin-top:2px}',
+      '.nao-stream{display:flex;flex-direction:column}',
+      '.nao-srow{display:flex;gap:10px;padding:7px 6px;border-bottom:1px solid rgba(127,127,127,.08)}',
+      '.nao-stime{width:72px;flex:none;font-size:10.5px;color:var(--dsw-alias-label-secondary,#8b8b99);padding-top:2px;font-variant-numeric:tabular-nums}',
+      '.nao-smain{flex:1;min-width:0}',
+      '.nao-shead{font-size:12.5px;line-height:1.45}',
+      '.nao-smeta{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;align-items:center}',
+      '.nao-chip{font-size:9.5px;padding:1px 6px;border-radius:999px;background:rgba(124,92,255,.13);color:var(--dsw-alias-brand-primary,#8f74ff)}',
+      '.nao-chip.is-warn{background:rgba(217,119,6,.16);color:#d97706}',
+      '.nao-tag{font-size:9.5px;padding:1px 6px;border-radius:6px;background:rgba(127,127,127,.12);color:var(--dsw-alias-label-secondary,#8b8b99)}',
+      '.nao-dim{color:var(--dsw-alias-label-secondary,#8b8b99)}',
+      '.nao-pad{padding:8px 4px}',
+      '.nao-err{color:#dc2626;font-size:11.5px;padding:6px 4px;line-height:1.5}',
+    ]
 
     /** 检索「范围」→ 服务端过滤参数（纯函数，便于桩测：这是"排除在哪一层生效"的唯一定义处） */
     function scopeParams(scope) {
@@ -443,328 +490,7 @@ window.__ModuleLoader__.load({
     }
 
     /* ── 家族树（由 entries 的 familyPath 自建父子关系）──────────────────── */
-    function buildTree(entries) {
-      var byFull = {}
-      entries.forEach(function (e) { byFull[e.fullPath] = e })
-      var kids = {}
-      var roots = []
-      var orphans = []
-      entries.forEach(function (e) {
-        var p = byFull[e.familyPath]
-        if (p && p !== e) {
-          (kids[p.fullPath] = kids[p.fullPath] || []).push(e)
-        } else if (e.familyPath === e.slug) {
-          roots.push(e)
-        } else {
-          orphans.push(e)
-        }
-      })
-      var cmp = function (a, b) { return String(a.fullPath).localeCompare(String(b.fullPath), 'zh') }
-      roots.sort(cmp)
-      Object.keys(kids).forEach(function (k) { kids[k].sort(cmp) })
-      orphans.sort(cmp)
-      return { roots: roots, orphans: orphans, kids: kids, byFull: byFull }
-    }
 
-    // 树节点每屏渲染上限：日记导入后单个年节点下会有几千个子节点，
-    // 一次全渲染会卡住界面（2026-10-06 导入 778 篇时已见苗头，全量 10338 篇必卡）。
-    var TREE_PAGE = 60
-
-    function TreeNode(props) {
-      var e = props.entry
-      var kids = props.kids[e.fullPath] || []
-      var open = !!props.expanded[e.fullPath]
-      var sel = props.selected === e.slug
-      var lim = (props.shown && props.shown[e.fullPath]) || TREE_PAGE
-      var slice = kids.length > lim ? kids.slice(0, lim) : kids
-      return h('div', null,
-        h('button', {
-          className: 'lbm-node' + (sel ? ' is-sel' : ''),
-          type: 'button',
-          style: { paddingLeft: (props.depth * 12 + 8) + 'px' },
-          title: e.fullPath + ' ｜ ' + e.status + ' ｜ 修订 ' + e.revisions,
-          onClick: function () {
-            props.onSelect(e.slug)
-            if (kids.length) props.onToggle(e.fullPath)
-          },
-        },
-          h('span', { className: 'lbm-twist' }, kids.length ? (open ? '▾' : '▸') : ''),
-          h('span', { className: 'lbm-dot', style: { background: STATUS_COLOR[e.status] || '#9ca3af' } }),
-          h('span', { className: 'lbm-nodeTitle' }, e.title || e.slug),
-          kids.length ? h('span', { className: 'lbm-revs' }, String(kids.length)) : null),
-        open ? h('div', null,
-          slice.map(function (k) {
-            return h(TreeNode, {
-              key: k.fullPath, entry: k, kids: props.kids, expanded: props.expanded,
-              onToggle: props.onToggle, onSelect: props.onSelect, selected: props.selected,
-              depth: props.depth + 1, shown: props.shown, onMore: props.onMore,
-            })
-          }),
-          kids.length > lim
-            ? h('button', {
-                className: 'lbm-more', type: 'button',
-                style: { marginLeft: (props.depth * 12 + 20) + 'px' },
-                onClick: function () { props.onMore(e.fullPath) },
-              }, '显示更多（' + lim + ' / ' + kids.length + '）')
-            : null) : null)
-    }
-
-    /* ── 条目详情 ─────────────────────────────────────────────────────────── */
-    function Detail(props) {
-      var d = props.detail
-      if (props.loading) return h('div', { className: 'lbm-empty' }, '读取中…')
-      if (props.error) return h('div', { className: 'lbm-err' }, '读取条目失败：' + props.error)
-      if (!d) {
-        return h('div', { className: 'lbm-empty' },
-          h('div', null, '左侧点一个条目，这里显示正文与修订史。'),
-          h('div', { style: { marginTop: '8px' } }, '检索：上方输入框 —— 关键词 / 语义 / 融合三种模式。'))
-      }
-      var page = d.page || d
-      var revs = page.recentRevisions || []
-      return h('div', { className: 'lbm-detail' },
-        h('h2', { className: 'lbm-dTitle' }, page.title || page.slug),
-        h('div', { className: 'lbm-dMeta' },
-          h('span', { className: 'lbm-tag' }, page.slug),
-          h('span', { className: 'lbm-tag', style: { color: STATUS_COLOR[page.status] || '' } }, page.status || '—'),
-          h('span', null, '修订 ' + (page.revisions != null ? page.revisions : '—')),
-          h('span', null, '更新 ' + fmtTime(page.updatedAt)),
-          h('span', null, '家族 ' + (page.familyPath || '—'))),
-        page.intro ? h('div', { className: 'lbm-dIntro' }, h(Md, { text: page.intro })) : null,
-        h('div', { className: 'lbm-dSecTitle' }, '正文'),
-        h('div', { className: 'lbm-content' }, h(Md, { text: page.content || '（正文为空）' })),
-        (page.diaryRefs && page.diaryRefs.length)
-          ? h('div', null,
-              h('div', { className: 'lbm-dSecTitle' }, '溯源日记 ' + page.diaryRefs.length + ' 篇（点开看原文）'),
-              h('div', null, page.diaryRefs.map(function (r) {
-                return h('button', {
-                  key: r.workspace + '/' + r.id, className: 'lbm-chipBtn', type: 'button',
-                  title: r.qualified ? '正文里带了工作区限定，按 (工作区,日记号) 精确定位'
-                                     : '正文里只写了日记号——该号在多个工作区存在时全部列出（不猜）',
-                  onClick: function () { props.onDiary(r.workspace, r.id) },
-                }, r.id + ' @ ' + r.workspace)
-              })))
-          : null,
-        (page.children && page.children.length)
-          ? h('div', null,
-              h('div', { className: 'lbm-dSecTitle' }, '子条目 ' + page.children.length),
-              page.children.map(function (c) {
-                return h('button', {
-                  key: c.slug, className: 'lbm-childBtn', type: 'button',
-                  onClick: function () { props.onSelect(c.slug) },
-                }, '↳ ' + (c.title || c.slug) + '  ', h('span', { className: 'lbm-note' }, c.fullPath))
-              }))
-          : null,
-        (revs && revs.length)
-          ? h('div', null,
-              h('div', { className: 'lbm-dSecTitle' }, '最近修订（' + revs.length + '）'),
-              revs.map(function (r) {
-                return h('div', { key: 'r' + r.rev, className: 'lbm-revRow' },
-                  h('b', null, 'r' + r.rev),
-                  h('span', null, fmtTime(r.time)),
-                  h('span', null, r.contributor || '—'),
-                  h('span', null, r.action || ''),
-                  h('span', { style: { flex: '1', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.summary || ''))
-              }))
-          : null,
-        (page.checkpoints && page.checkpoints.length)
-          ? h('div', { className: 'lbm-dSecTitle' }, '检查点 ' + page.checkpoints.length + ' 档（梯度稀释）')
-          : null)
-    }
-
-    /* ── 日记枝（工作区 → 日记；懒加载 + 分页）────────────────────────────── */
-    function DiaryRows(props) {
-      var pg = props.pg || {}
-      var items = pg.items || []
-      if (pg.loading && !items.length) return h('div', { className: 'lbm-note', style: { padding: '4px 22px' } }, '载入中…')
-      if (pg.error) return h('div', { className: 'lbm-err' }, pg.error)
-      return h('div', null,
-        items.map(function (it) {
-          var sel = props.sel && props.sel.id === it.id && props.sel.ws === it.workspace
-          var tip = (it.summary || '') + (it.tags && it.tags.length ? '\n标签：' + it.tags.join('、') : '')
-          return h('button', {
-            key: it.workspace + '/' + it.id, type: 'button',
-            className: 'lbm-diaryRow' + (sel ? ' is-sel' : ''),
-            style: { paddingLeft: '38px' },
-            title: tip,
-            onClick: function () { props.onOpen(it.workspace, it.id) },
-          },
-            h('span', { className: 'lbm-diaryId' }, it.id),
-            h('span', { className: 'lbm-nodeTitle' }, (it.summary || '（无摘要）').slice(0, 46)),
-            h('span', { className: 'lbm-diaryDate' }, it.date || ''))
-        }),
-        items.length < (pg.total || 0)
-          ? h('button', {
-              className: 'lbm-more', type: 'button',
-              onClick: function () { props.onMore(props.ws, items.length) },
-            }, pg.loading ? '载入中…' : '加载更多（' + items.length + ' / ' + pg.total + '）')
-          : null)
-    }
-
-    function DiaryBranch(props) {
-      var st = props.st || {}
-      if (!st.open) return null
-      if (st.error) return h('div', { className: 'lbm-err' }, '日记枝不可用：' + st.error)
-      if (st.loading) return h('div', { className: 'lbm-empty' }, '载入日记枝…')
-      return h('div', null, (st.list || []).map(function (w) {
-        var open = !!props.open[w.workspace]
-        return h('div', { key: w.workspace },
-          h('button', {
-            className: 'lbm-node', type: 'button', style: { paddingLeft: '20px' },
-            title: w.workspace + '：' + w.count + ' 篇日记',
-            onClick: function () { props.onToggleWs(w.workspace) },
-          },
-            h('span', { className: 'lbm-twist' }, open ? '▾' : '▸'),
-            h('span', { className: 'lbm-nodeTitle' }, w.workspace),
-            h('span', { className: 'lbm-revs' }, String(w.count))),
-          open ? h(DiaryRows, {
-            pg: (props.pages || {})[w.workspace], ws: w.workspace, sel: props.sel,
-            onOpen: props.onOpen, onMore: props.onLoadMore,
-          }) : null)
-      }))
-    }
-
-    /* ── 日记详情（旧日记挂树；管理员 2026-10-06 指令）────────────────────── */
-    function DiaryDetail(props) {
-      if (props.loading) return h('div', { className: 'lbm-empty' }, '读取日记中…')
-      // 日记号跨工作区重号 → 让**用户**选，不替它猜（猜一个就是取错人）
-      if (props.needWorkspace) {
-        return h('div', { className: 'lbm-chooseWrap' },
-          h('div', { className: 'lbm-chooseTitle' }, '这个日记号在多个工作区都存在，请选一个：'),
-          h('div', { className: 'lbm-note', style: { marginBottom: '10px' } },
-            '日记号只在工作区内唯一（实测 D0001 出现在 19 个工作区），所以坐标必须带工作区。'),
-          (props.candidates || []).map(function (c) {
-            return h('button', {
-              key: c.workspace, className: 'lbm-chooseBtn', type: 'button',
-              onClick: function () { props.onPick(c.workspace) },
-            }, c.workspace)
-          }))
-      }
-      if (props.error) return h('div', { className: 'lbm-err' }, '读取日记失败：' + props.error)
-      var d = props.data
-      if (!d) {
-        return h('div', { className: 'lbm-empty' },
-          h('div', null, '左侧「日记」枝：展开工作区，点一篇看原文。'),
-          h('div', { style: { marginTop: '8px' } }, '日记是 wiki 条目的原料——条目正文里的 D 号就指向它们。'))
-      }
-      var diary = d.diary || d
-      var refs = diary.referencedBy || []
-      // 关键词词云：本篇标签（主色）+ 联想词（共现，灰）——管理员 2026-10-10 需求
-      var cloudSrc = diary.workspace && diary.id ? (diary.workspace + '/' + diary.id) : ''
-      return h('div', { className: 'lbm-detail' },
-        h('h2', { className: 'lbm-dTitle' }, '日记 ' + diary.id),
-        h('div', { className: 'lbm-dMeta' },
-          h('span', { className: 'lbm-tag' }, diary.workspace),
-          diary.date ? h('span', null, diary.date) : null,
-          diary.time ? h('span', null, diary.time) : null,
-          h('span', null, (diary.chars || 0) + ' 字')),
-        (diary.tags && diary.tags.length)
-          ? h('div', { style: { marginTop: '10px' } }, diary.tags.map(function (t) {
-              return h('span', { key: t, className: 'lbm-tag', style: { marginRight: '6px' } }, t)
-            }))
-          : null,
-        cloudSrc ? h(TagCloudForSource, { source: cloudSrc }) : null,
-        h('div', { className: 'lbm-dSecTitle' }, '正文'),
-        h('div', { className: 'lbm-content' }, h(Md, { text: diary.body || '（正文为空）' })),
-        diary.summary ? h('div', null, h('div', { className: 'lbm-dSecTitle' }, '摘要'), h(Md, { text: diary.summary })) : null,
-        h('div', { className: 'lbm-dSecTitle' }, '被这些 wiki 条目引用（' + refs.length + '）'),
-        refs.length
-          ? h('div', null, refs.map(function (r) {
-              return h('button', {
-                key: r.slug, className: 'lbm-chipBtn', type: 'button',
-                onClick: function () { props.onOpenWiki(r.slug) },
-              }, r.title || r.slug)
-            }))
-          : h('div', { className: 'lbm-note' }, '暂无 wiki 条目在正文里引用它。'))
-    }
-
-    /* ── 主面板 ───────────────────────────────────────────────────────────── */
-    /* 记忆上传记录（盘点）：每行 = 一个上传批次（对话哈希/来源 ｜ 时间 ｜ 产出条数）。
-     * 数据：op=uploads（世界树库 uploads 表；便签上行按池键=会话哈希精确分组）。 */
-    function TagCloudForSource(props) {
-      var src = props.source
-      var st = React.useState(null)
-      var data = st[0], setData = st[1]
-      React.useEffect(function () {
-        if (!src) return
-        setData(null)
-        fetchJson(API + '?op=entry_tags&source=' + encodeURIComponent(src))
-          .then(function (j) { setData(j && j.ok ? j : { error: (j && j.error) || '读取失败' }) })
-          .catch(function (err) { setData({ error: String(err) }) })
-      }, [src])
-      if (!data) return null
-      if (data.error) return h('div', { className: 'lbm-revs' }, '词云：' + data.error)
-      var own = data.tags || [], assoc = data.associated || []
-      if (!own.length && !assoc.length) return null
-      return h('div', { style: { padding: '4px 0 8px', borderBottom: '1px solid var(--dsw-alias-separator)', marginBottom: 6 } },
-        own.length ? h('div', null, own.map(function (t, i) {
-          return h('span', { key: i, style: { fontSize: '13px', margin: '0 6px 0 0', color: 'var(--dsw-alias-state-business-primary)' } }, ' #' + t)
-        })) : null,
-        assoc.length ? h('div', { style: { marginTop: 4 } }, assoc.map(function (x, i) {
-          var big = x.count >= 3 ? 13 : 11
-          return h('span', { key: i, title: '共现 ' + x.count + ' 条',
-            style: { fontSize: big + 'px', margin: '0 6px 0 0', color: 'var(--dsw-alias-label-tertiary)', cursor: 'default' } }, x.tag)
-        })) : null)
-    }
-
-    /* ── tag 筛选面板：卡片式可折叠；词组化迁移（2026-10-17）后展示真实词汇 ── */
-    function TagFilterPanel(props) {
-      var st = React.useState({ list: null, loading: false, error: null })
-      var tab = st[0], setTab = st[1]
-      var sel = React.useState({})
-      var selected = sel[0], setSelected = sel[1]
-      var md = React.useState('rows')            // 'rows'=4行 ｜ 'full'=展开 ｜ 'hidden'=隐藏
-      var mode = md[0], setMode = md[1]
-      React.useEffect(function () {
-        if (tab.list || tab.loading) return
-        setTab({ list: null, loading: true, error: null })
-        fetchJson(API + '?op=tag_table&limit=200')
-          .then(function (j) {
-            setTab(j && j.ok ? { list: j.tags || [], loading: false, error: null }
-                             : { list: null, loading: false, error: (j && j.error) || '读取失败' })
-          })
-          .catch(function (err) { setTab({ list: null, loading: false, error: String(err) }) })
-      }, [])
-      function runFilter(sel) {                    // 点选即筛
-        var tags = Object.keys(sel).join(',')
-        if (!tags) { props.onResults && props.onResults(null, ''); return }
-        fetchJson(API + '?op=tag_filter&tags=' + encodeURIComponent(tags))
-          .then(function (j) { props.onResults && props.onResults(j && j.ok ? (j.hits || []) : { err: (j && j.error) || '筛选失败' }, Object.keys(selected).join(',')) })
-          .catch(function (err) { props.onResults && props.onResults({ err: String(err) }, Object.keys(selected).join(',')) })
-      }
-      function pick(tag) {
-        var n = Object.assign({}, selected)
-        if (n[tag]) delete n[tag]; else n[tag] = true
-        setSelected(n)
-        runFilter(n)
-      }
-      var selCount = Object.keys(selected).length
-      if (mode === 'hidden') {
-        return h('button', { className: 'lbm-btn', type: 'button', onClick: function () { setMode('rows') } },
-          '⌗ 标签筛选' + (selCount ? '（已选 ' + selCount + '）' : ''))
-      }
-      return h('div', { className: 'lbm-tagBox' + (mode === 'full' ? ' is-full' : '') },
-        h('div', { className: 'lbm-tagHead' },
-          h('span', { className: 'lbm-tagHeadTitle' }, '标签筛选',
-            h('span', { className: 'lbm-revs' }, tab.loading ? ' 载入中…' : ' · ' + (tab.list ? tab.list.length : 0) + ' 个')),
-          h('span', { style: { flex: 1 } }),
-          selCount ? h('span', { className: 'lbm-tagSel' }, '已选 ' + selCount + '（点选即筛 · 再点取消）') : null,
-          h('button', { className: 'lbm-btn lbm-btnSm', type: 'button', onClick: function () { setMode(mode === 'full' ? 'rows' : 'full') } },
-            mode === 'full' ? '收起' : '展开全部'),
-          h('button', { className: 'lbm-btn lbm-btnSm', type: 'button', onClick: function () { setMode('hidden') } }, '隐藏')),
-        h('div', { className: 'lbm-tagCloud' + (mode === 'full' ? ' is-full' : '') },
-          (tab.list || []).map(function (x) {
-            var on = !!selected[x.tag]
-            var big = x.count >= 100 ? 14 : (x.count >= 30 ? 13 : 12)
-            return h('button', { key: x.tag, type: 'button', onClick: function () { pick(x.tag) },
-              title: x.count + ' 条记忆带此标签', className: 'lbm-chip' + (on ? ' is-on' : ''),
-              style: { fontSize: big + 'px' } },
-              x.tag,
-              h('span', { className: 'lbm-chipCount' + (on ? ' is-on' : '') }, String(x.count)))
-          }),
-          tab.error ? h('div', { className: 'lbm-err' }, tab.error) : null))
-    }
-
-    /* ── 上传视图：拖拽投放 + 粘贴 → 实时解析计数 → 逐条编码入库 ── */
     function UploadPanel(props) {
       var txt = React.useState('')
       var text = txt[0], setText = txt[1]
@@ -1096,790 +822,417 @@ window.__ModuleLoader__.load({
           h('button', { className: 'lbm-btn lbm-btnPrimary', type: 'button', onClick: save }, '保存设置'),
           h('span', { className: 'lbm-revs' }, saved)))
     }
-    /* ── 网络图（v2 图架构·2026-10-30）：力导向 canvas，节点=条目 边=kNN(TAU=0.65)
-     * 种子=品牌蓝+光环；半径∝度；qsim 冷暖着色；拖拽固定；点击（位移<6px）→ onNode(source)。
-     * 纯 canvas 自绘（插件 bundle 不引三方库）；hover 走 DOM 浮层不碰画布。 */
-    function NetGraph(props) {
-      var data = props.data || { nodes: [], edges: [] }
-      var onNode = props.onNode || function () {}
-      var height = props.height || 520
-      var wrapRef = React.useRef(null)
-      var canvasRef = React.useRef(null)
-      var hv = React.useState(null)
-      var hover = hv[0], setHover = hv[1]
-      React.useEffect(function () {
-        var wrap = wrapRef.current, canvas = canvasRef.current
-        if (!wrap || !canvas) return
-        var raw = data.nodes || []
-        if (!raw.length) return
-        var W = wrap.clientWidth || 560, H = height
-        var nodes = raw.map(function (n, i) {
-          var ang = (i / raw.length) * Math.PI * 2
-          var rr = Math.min(W, H) * 0.34
-          return { idx: i, source: n.source, head: n.head || '', deg: n.deg || 0,
-                   seed: !!n.seed, qsim: n.qsim,
-                   x: W / 2 + rr * Math.cos(ang) + (Math.random() - 0.5) * 24,
-                   y: H / 2 + rr * Math.sin(ang) + (Math.random() - 0.5) * 24,
-                   vx: 0, vy: 0, fixed: false }
-        })
-        var by = {}; nodes.forEach(function (n) { by[n.idx] = n })
-        var edges = (data.edges || []).filter(function (e) { return by[e[0]] && by[e[1]] })
-        var dpr = Math.min(2, window.devicePixelRatio || 1)
-        canvas.width = W * dpr; canvas.height = H * dpr
-        canvas.style.width = '100%'; canvas.style.height = H + 'px'
-        var ctx = canvas.getContext('2d')
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-        var k = Math.sqrt((W * H) / Math.max(1, nodes.length)) * 0.72
 
-        function step() {
-          var i, j, n, m, dx, dy, d2, d, f
-          for (i = 0; i < nodes.length; i++) {
-            n = nodes[i]
-            for (j = i + 1; j < nodes.length; j++) {
-              m = nodes[j]
-              dx = n.x - m.x; dy = n.y - m.y; d2 = dx * dx + dy * dy
-              if (d2 < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d2 = 1 }
-              else if (d2 > 36000) continue
-              d = Math.sqrt(d2); f = (k * k) / d2
-              var fx = (dx / d) * f, fy = (dy / d) * f
-              n.vx += fx; n.vy += fy; m.vx -= fx; m.vy -= fy
+    /* ── 脑图 · 数据口（op 路由，全部经宿主 /api/liubian-wiki）───────────────── */
+    function opGet(op, params) {
+      var s = API + '?op=' + encodeURIComponent(op)
+      if (params) Object.keys(params).forEach(function (k) {
+        var v = params[k]
+        if (v !== undefined && v !== null && v !== '') s += '&' + k + '=' + encodeURIComponent(v)
+      })
+      return fetchJson(s)
+    }
+
+    /* ══ 脑区地形图（canvas）═══════════════════════════════════════════════
+       数据：op=brain → {ids, regions:{id:{size,rep,events,nEvents}}, links:[[a,b,w]]}
+       布局：环形初始 + 力导向（斥力∝size 和，边吸引∝w）；渲染=柔光圆 + 标签
+       交互：拖拽平移 / 滚轮缩放 / hover 提示 / 点击开区详情 / 检索命中高亮 */
+    var BRAIN_ACCENT = 'var(--dsw-alias-brand-primary)'
+
+    function hash01(str) {
+      var x = 2166136261
+      for (var i = 0; i < str.length; i++) { x ^= str.charCodeAt(i); x = Math.imul(x, 16777619) }
+      return ((x >>> 0) % 1000) / 1000
+    }
+
+    function BrainMap(props) {
+      var ref = React.useRef(null)
+      var st = React.useState({ hover: null, cam: { x: 0, y: 0, k: 1 } })
+      var ui = st[0], setUi = st[1]
+      var pos = React.useRef(null)      // id → [x,y]
+      var drag = React.useRef(null)
+      var data = props.data
+
+      // 布局：数据变化后跑一次力导向，结果缓存
+      React.useEffect(function () {
+        var d = data
+        if (!d || !d.ids || !d.ids.length) { pos.current = null; return }
+        var ids = d.ids
+        var n = ids.length
+        var P = ids.map(function (id, i) {
+          var a = (i / n) * Math.PI * 2
+          var rr = 180 + 260 * hash01(id)
+          return [Math.cos(a) * rr, Math.sin(a) * rr]
+        })
+        var size = ids.map(function (id) { return Math.max(8, Math.sqrt(d.regions[id].size) * 6) })
+        var idx = {}
+        ids.forEach(function (id, i) { idx[id] = i })
+        var L = (d.links || []).filter(function (e) { return idx[e[0]] !== undefined && idx[e[1]] !== undefined })
+        for (var it = 0; it < 300; it++) {
+          var F = P.map(function () { return [0, 0] })
+          // 斥力
+          for (var i = 0; i < n; i++) {
+            for (var j = i + 1; j < n; j++) {
+              var dx = P[i][0] - P[j][0], dy = P[i][1] - P[j][1]
+              var d2 = dx * dx + dy * dy + 1
+              var f = (size[i] * size[j]) * 0.9 / d2
+              var dd = Math.sqrt(d2)
+              F[i][0] += dx / dd * f; F[i][1] += dy / dd * f
+              F[j][0] -= dx / dd * f; F[j][1] -= dy / dd * f
             }
           }
-          edges.forEach(function (e) {
-            var a = by[e[0]], b = by[e[1]]
-            dx = b.x - a.x; dy = b.y - a.y
-            var dd = Math.sqrt(dx * dx + dy * dy) || 1
-            f = (dd - 86) * 0.018 * (0.5 + Math.max(0, e[2] - 0.6) * 2.5)
-            var fx2 = (dx / dd) * f, fy2 = (dy / dd) * f
-            a.vx += fx2; a.vy += fy2; b.vx -= fx2; b.vy -= fy2
+          // 边吸引
+          L.forEach(function (e) {
+            var a = idx[e[0]], b = idx[e[1]]
+            var dx = P[b][0] - P[a][0], dy = P[b][1] - P[a][1]
+            var dd = Math.sqrt(dx * dx + dy * dy) + 1
+            var target = 90 + size[a] + size[b]
+            var f = (dd - target) * 0.012 * Math.min(3, Math.sqrt(e[2]) * 0.4)
+            F[a][0] += dx / dd * f; F[a][1] += dy / dd * f
+            F[b][0] -= dx / dd * f; F[b][1] -= dy / dd * f
           })
-          nodes.forEach(function (n) {
-            if (n.fixed) { n.vx = 0; n.vy = 0; return }
-            n.vx += (W / 2 - n.x) * 0.0016; n.vy += (H / 2 - n.y) * 0.0016
-            n.vx *= 0.85; n.vy *= 0.85
-            n.x += Math.max(-14, Math.min(14, n.vx)); n.y += Math.max(-14, Math.min(14, n.vy))
-            n.x = Math.max(16, Math.min(W - 16, n.x)); n.y = Math.max(16, Math.min(H - 16, n.y))
-          })
-        }
-        function radius(n) {
-          if (n.size != null) return Math.min(26, 7 + Math.sqrt(n.size) * 1.7)   // 簇节点：∝√簇大小
-          return Math.min(16, 4.5 + Math.sqrt(n.deg) * 2.2) + (n.seed ? 2.5 : 0)
-        }
-        function fillOf(n) {
-          if (n.seed) return '#4f6ef7'
-          if (n.size != null) return '#5b7bb4'                                    // 簇节点：统一蓝
-          if (n.qsim != null) {
-            var t = Math.max(0, Math.min(1, ((n.qsim || 0) - 0.3) / 0.35))
-            return 'rgb(' + Math.round(96 + t * 110) + ',' + Math.round(150 - t * 60) + ',' + Math.round(225 - t * 150) + ')'
+          // 向心 + 位移
+          for (var k = 0; k < n; k++) {
+            F[k][0] -= P[k][0] * 0.0025; F[k][1] -= P[k][1] * 0.0025
+            P[k][0] += Math.max(-14, Math.min(14, F[k][0]))
+            P[k][1] += Math.max(-14, Math.min(14, F[k][1]))
           }
-          return '#7d8aa5'
         }
-        function nearest(mx, my) {
-          var best = null, bd = 20 * 20
-          nodes.forEach(function (n) {
-            var d2 = (n.x - mx) * (n.x - mx) + (n.y - my) * (n.y - my)
-            if (d2 < bd) { bd = d2; best = n }
-          })
-          return best
-        }
-        function pos(ev) {
-          var r = canvas.getBoundingClientRect()
-          return { x: ev.clientX - r.left, y: ev.clientY - r.top }
-        }
-        var drag = null, moved = 0, frame = 0, raf = 0, alive = true
-        function tick() {
-          if (!alive) return
-          var iter = frame < 50 ? 5 : (frame < 180 ? 3 : 1)
-          while (iter-- > 0) step()
-          frame++
-          ctx.clearRect(0, 0, W, H)
-          ctx.lineWidth = 1
-          edges.forEach(function (e) {
-            var a = by[e[0]], b = by[e[1]]
-            ctx.strokeStyle = 'rgba(125,138,165,' + (0.18 + Math.max(0, e[2] - 0.6) * 1.6).toFixed(3) + ')'
-            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke()
-          })
-          nodes.forEach(function (n) {
-            var r = radius(n)
-            if (n.seed) {
-              ctx.beginPath(); ctx.arc(n.x, n.y, r + 5, 0, 6.2832)
-              ctx.strokeStyle = 'rgba(79,110,247,0.45)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.lineWidth = 1
-            }
-            ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 6.2832)
-            ctx.fillStyle = fillOf(n); ctx.fill()
-            if (hoverNode === n || n.fixed) { ctx.strokeStyle = '#1f2937'; ctx.stroke() }
-          })
-          // 标签：种子/悬停常显；labelAll（簇图）全显
-          ctx.font = '11px ' + (window.getComputedStyle(canvas).fontFamily || 'sans-serif')
-          ctx.fillStyle = 'rgba(30,35,50,0.9)'
-          nodes.forEach(function (n) {
-            if (!props.labelAll && !n.seed && hoverNode !== n) return
-            var r = radius(n)
-            var label = (n.head || n.source).slice(0, props.labelAll ? 12 : 16)
-            ctx.fillText(label, n.x + r + 4, n.y + 4)
-          })
-          if (frame < 340) raf = requestAnimationFrame(tick)
-        }
-        var hoverNode = null
-        function onMove(ev) {
-          var p = pos(ev)
-          if (drag) {
-            moved += 1
-            drag.x = Math.max(16, Math.min(W - 16, p.x)); drag.y = Math.max(16, Math.min(H - 16, p.y))
-            return
-          }
-          var n = nearest(p.x, p.y)
-          if (n !== hoverNode) { hoverNode = n; setHover(n ? { x: n.x, y: n.y, node: n } : null) }
-        }
-        function onDown(ev) {
-          var p = pos(ev)
-          var n = nearest(p.x, p.y)
-          if (n) { drag = n; n.fixed = true; moved = 0; raf = requestAnimationFrame(tick) }
-        }
-        function onUp(ev) {
-          if (!drag) return
-          if (moved < 6) onNode(drag.source)
-          drag.fixed = false; drag = null
-        }
-        function onLeave() { hoverNode = null; setHover(null); if (drag) { drag.fixed = false; drag = null } }
-        canvas.addEventListener('mousemove', onMove)
-        canvas.addEventListener('mousedown', onDown)
-        window.addEventListener('mouseup', onUp)
-        canvas.addEventListener('mouseleave', onLeave)
-        raf = requestAnimationFrame(tick)
-        return function () {
-          alive = false
-          cancelAnimationFrame(raf)
-          canvas.removeEventListener('mousemove', onMove)
-          canvas.removeEventListener('mousedown', onDown)
-          window.removeEventListener('mouseup', onUp)
-          canvas.removeEventListener('mouseleave', onLeave)
-        }
+        var map = {}
+        ids.forEach(function (id, i) { map[id] = P[i] })
+        pos.current = map
+        setUi(function (u) { return Object.assign({}, u) })
       }, [data])
-      return h('div', { ref: wrapRef, style: { position: 'relative', width: '100%', minHeight: 1 } },
-        h('canvas', { ref: canvasRef }),
-        hover ? h('div', {
-          style: {
-            position: 'absolute', left: Math.min((wrapRef.current ? wrapRef.current.clientWidth : 600) - 220, hover.x + 14),
-            top: Math.max(0, hover.y - 30), maxWidth: 220,
-            background: 'var(--dsw-alias-bg-layer-2,#fff)', border: '.5px solid var(--dsw-alias-border-l3)',
-            borderRadius: 8, padding: '6px 8px', fontSize: 11, lineHeight: '16px',
-            boxShadow: 'var(--dsw-elevation-soft)', pointerEvents: 'none', zIndex: 5,
-          } },
-          h('div', { style: { fontWeight: 600 } }, (hover.node.head || hover.node.source).slice(0, 40)),
-          h('div', { style: { color: 'var(--dsw-alias-label-tertiary)' } },
-            hover.node.size != null ? (hover.node.size + ' 条记忆 · 簇')
-              : ('度 ' + hover.node.deg + (hover.node.seed ? ' · 种子' : '')
-                + (hover.node.qsim != null ? ' · 相关 ' + hover.node.qsim : '')))) : null)
+
+      // 绘制
+      React.useEffect(function () {
+        var canvas = ref.current
+        if (!canvas) return
+        var ctx = canvas.getContext('2d')
+        var dpr = window.devicePixelRatio || 1
+        var W = canvas.clientWidth, H = canvas.clientHeight
+        if (canvas.width !== W * dpr || canvas.height !== H * dpr) {
+          canvas.width = W * dpr; canvas.height = H * dpr
+        }
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+        ctx.clearRect(0, 0, W, H)
+        var d = data, P = pos.current
+        if (!d || !P) {
+          ctx.fillStyle = 'rgba(127,127,127,.55)'; ctx.font = '13px system-ui'
+          ctx.fillText(props.empty || '载入脑区…', 24, 36); return
+        }
+        var cam = ui.cam
+        ctx.save()
+        ctx.translate(W / 2 + cam.x, H / 2 + cam.y)
+        ctx.scale(cam.k, cam.k)
+        var ids = d.ids
+        var hit = props.hit || {}     // region id（或 ''）→ 命中强度 0..1
+        // 边
+        ctx.lineWidth = 1
+        ;(d.links || []).forEach(function (e) {
+          var A = P[d.ids[e[0]]], B = P[d.ids[e[1]]]
+          if (!A || !B) return
+          ctx.strokeStyle = 'rgba(124,92,255,' + Math.min(0.28, 0.04 + e[2] * 0.002) + ')'
+          ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke()
+        })
+        // 区
+        ids.forEach(function (id, i) {
+          var r = d.regions[id]
+          var p = P[id]
+          if (!p) return
+          var rad = Math.max(9, Math.sqrt(r.size) * 6)
+          var h = hit[id] || 0
+          var dim = props.hasHit && !h
+          var g = ctx.createRadialGradient(p[0], p[1], rad * 0.2, p[0], p[1], rad)
+          var base = 0.10 + 0.16 * hash01(id)
+          if (h) {
+            g.addColorStop(0, 'rgba(124,92,255,' + (0.55 + 0.35 * h) + ')')
+            g.addColorStop(1, 'rgba(124,92,255,0.05)')
+          } else {
+            g.addColorStop(0, 'rgba(124,92,255,' + (dim ? base * 0.5 : base + 0.10) + ')')
+            g.addColorStop(1, 'rgba(124,92,255,0.02)')
+          }
+          ctx.fillStyle = g
+          ctx.beginPath(); ctx.arc(p[0], p[1], rad, 0, Math.PI * 2); ctx.fill()
+          if (h) {
+            ctx.strokeStyle = 'rgba(124,92,255,' + (0.6 + 0.4 * h) + ')'
+            ctx.lineWidth = 1.4; ctx.stroke()
+          }
+          var isHover = ui.hover === id
+          if (rad > 22 || isHover || h) {
+            ctx.fillStyle = h ? 'rgba(255,255,255,.92)' : (isHover ? 'rgba(255,255,255,.85)' : 'rgba(200,200,215,.55)')
+            ctx.font = (rad > 34 ? 12 : 11) + 'px system-ui'
+            var label = String(r.rep || '').slice(0, rad > 34 ? 10 : 6)
+            ctx.fillText(label, p[0] - label.length * 3, p[1] + 4)
+          }
+        })
+        ctx.restore()
+      })
+
+      function local(e) {
+        var c = ref.current.getBoundingClientRect()
+        return [e.clientX - c.left, e.clientY - c.top]
+      }
+      function toWorld(mx, my) {
+        var canvas = ref.current
+        var W = canvas.clientWidth, H = canvas.clientHeight
+        var cam = ui.cam
+        return [(mx - W / 2 - cam.x) / cam.k, (my - H / 2 - cam.y) / cam.k]
+      }
+      function pick(mx, my) {
+        var d = data, P = pos.current
+        if (!d || !P) return null
+        var w = toWorld(mx, my)
+        var best = null, bd = 1e9
+        d.ids.forEach(function (id) {
+          var p = P[id]; if (!p) return
+          var rad = Math.max(9, Math.sqrt(d.regions[id].size) * 6)
+          var dd = (p[0] - w[0]) * (p[0] - w[0]) + (p[1] - w[1]) * (p[1] - w[1])
+          if (dd < rad * rad && dd < bd) { bd = dd; best = id }
+        })
+        return best
+      }
+      var hv = ui.hover && data && data.regions ? data.regions[ui.hover] : null
+      return h('div', { className: 'nao-mapH' },
+        h('canvas', {
+          ref: ref, className: 'nao-map',
+          onMouseDown: function (e) {
+            var p = local(e); drag.current = { x: p[0], y: p[1], cam: Object.assign({}, ui.cam), moved: 0 }
+          },
+          onMouseMove: function (e) {
+            var p = local(e)
+            if (drag.current) {
+              var dx = p[0] - drag.current.x, dy = p[1] - drag.current.y
+              drag.current.moved += Math.abs(dx) + Math.abs(dy)
+              setUi(function (u) { return Object.assign({}, u, { cam: { x: drag.current.cam.x + dx, y: drag.current.cam.y + dy, k: drag.current.cam.k } }) })
+              return
+            }
+            var id = pick(p[0], p[1])
+            if ((id || null) !== (ui.hover || null)) setUi(function (u) { return Object.assign({}, u, { hover: id }) })
+          },
+          onMouseUp: function (e) {
+            var d0 = drag.current
+            drag.current = null
+            if (!d0 || d0.moved > 6) return
+            var p = local(e)
+            var id = pick(p[0], p[1])
+            if (id && props.onPick) props.onPick(id)
+          },
+          onMouseLeave: function () { drag.current = null; setUi(function (u) { return Object.assign({}, u, { hover: null }) }) },
+          onWheel: function (e) {
+            e.preventDefault()
+            var k = Math.max(0.5, Math.min(3, ui.cam.k * (e.deltaY > 0 ? 0.92 : 1.08)))
+            setUi(function (u) { return Object.assign({}, u, { cam: { x: u.cam.x, y: u.cam.y, k: k } }) })
+          },
+        }),
+        hv ? h('div', { className: 'nao-tip' },
+          h('div', { className: 'nao-tipHead' }, String(hv.rep || '').slice(0, 44)),
+          h('div', { className: 'nao-tipMeta' }, hv.size + ' 元记忆 · ' + hv.nEvents + ' 事件')) : null)
     }
 
-    function WikiApp(props) {
-      var back = props && props.backToConversation
-      var st = React.useState({ tree: null, loading: true, error: null, count: 0 })
-      var treeState = st[0], setTreeState = st[1]
-      var se = React.useState({})
-      var expanded = se[0], setExpanded = se[1]
-      var sshow = React.useState({})
-      var shown = sshow[0], setShown = sshow[1]
-      var sq = React.useState({ text: '', mode: 'hybrid', status: '', scope: 'all' })
-      var q = sq[0], setQ = sq[1]
-      var sr = React.useState({ hits: null, loading: false, error: null, degraded: null, total: 0, ran: '' })
-      var res = sr[0], setRes = sr[1]
-      var sd = React.useState({ slug: '', detail: null, loading: false, error: null })
-      var det = sd[0], setDet = sd[1]
-      // 日记枝：dtState = 枝状态 / dOpen = 展开了哪些工作区 / dPages = 每区已加载页 / ddet = 选中日记
-      var sdt = React.useState({ total: 0, list: null, loading: false, error: null, open: false })
-      var dtState = sdt[0], setDtState = sdt[1]
-      var sdo = React.useState({})
-      var dOpen = sdo[0], setDOpen = sdo[1]
-      var sdp = React.useState({})
-      var dPages = sdp[0], setDPages = sdp[1]
-      var sdd = React.useState({ ws: '', id: '', data: null, loading: false, error: null, needWorkspace: false, candidates: null })
-      var ddet = sdd[0], setDdet = sdd[1]
-      // 顶栏视图（v0.10.0 三页 IA）：脑图（默认，梦簇网图+检索）/ 入库（管线+上传+台账）/ 设置
-      var svw = React.useState('atlas')
-      var view = svw[0], setView = svw[1]
-      // 家族树左栏折叠（管理员 2026-10-10：可向左隐藏，腾出全宽）
-      var sto = React.useState(true)
-      var treeOpen = sto[0], setTreeOpen = sto[1]
+    /* ══ 脑图视图：地形 + 检索 ═══════════════════════════════════════════ */
+    function AtlasView(props) {
+      var bs = React.useState({ loading: true })
+      var brain = bs[0], setBrain = bs[1]
+      var qs1 = React.useState('')
+      var qtext = qs1[0], setQtext = qs1[1]
+      var rs = React.useState({ busy: false, rows: [], q: '' })
+      var res = rs[0], setRes = rs[1]
+      var ds = React.useState(null)
+      var pickId = ds[0], setPickId = ds[1]
+      var es = React.useState(null)
+      var entry = es[0], setEntry = es[1]
 
-      var tree = treeState.tree
-      var idx = React.useMemo(function () { return tree ? buildTree(tree.entries || []) : null }, [tree])
+      var loadBrain = React.useCallback(function () {
+        setBrain(function (b) { return Object.assign({}, b, { loading: true }) })
+        opGet('brain', { topn: 140 }).then(function (j) {
+          setBrain(j && j.ok ? Object.assign({}, j, { loading: false }) : { loading: false, error: (j && j.error) || '读取失败' })
+        }).catch(function (e) { setBrain({ loading: false, error: String(e) }) })
+      }, [])
+      React.useEffect(function () { loadBrain() }, [loadBrain])
 
-      function loadTree() {
-        setTreeState({ tree: null, loading: true, error: null, count: 0 })
-        fetchJson(API + '?op=wt_tree')
-          .then(function (j) {
-            if (!j || !j.ok) {
-              setTreeState({ tree: null, loading: false, error: (j && j.error) || '未知错误', count: 0 })
-              return
-            }
-            var e = j.entries || []
-            setTreeState({ tree: j, loading: false, error: null, count: e.length })
-            // 默认展开根家族的第一层（让 14 个家族一眼可见）
-            var exp = {}
-            e.forEach(function (x) { if (x.familyPath === x.slug) exp[x.fullPath] = true })
-            setExpanded(exp)
-          })
-          .catch(function (err) {
-            setTreeState({ tree: null, loading: false, error: String((err && err.message) || err), count: 0 })
-          })
+      function runSearch() {
+        var q = qtext.trim()
+        if (!q) { setRes({ busy: false, rows: [], q: '' }); return }
+        setRes({ busy: true, rows: [], q: q })
+        opGet('race', { text: q, want: 20 }).then(function (j) {
+          if (j && j.ok) setRes({ busy: false, rows: j.ranked || [], q: q, qtags: j.qtags })
+          else setRes({ busy: false, rows: [], q: q, error: (j && j.error) || '检索失败' })
+        }).catch(function (e) { setRes({ busy: false, rows: [], q: q, error: String(e) }) })
       }
-      React.useEffect(function () { loadTree(); loadDiaryTree(false) }, [])
+      function openEntry(src) {
+        setEntry({ loading: true, source: src })
+        opGet('entry_get', { source: src }).then(function (j) {
+          setEntry(j && j.ok ? Object.assign({}, j, { loading: false }) : { loading: false, source: src, error: (j && j.error) || '读取失败' })
+        }).catch(function (e) { setEntry({ loading: false, source: src, error: String(e) }) })
+      }
 
-      function loadDetail(slug) {
-        if (!slug) { setDet({ slug: '', detail: null, loading: false, error: '条目坐标为空（无法加载）' }); return }
-        setDet({ slug: slug, detail: null, loading: true, error: null })
-        fetchJson(API + '?op=get&' + qs({ slug: slug }))
-          .then(function (j) {
-            if (!j || !j.ok) { setDet({ slug: slug, detail: null, loading: false, error: (j && j.error) || '未知错误' }); return }
-            setDet({ slug: slug, detail: j, loading: false, error: null })
-          })
-          .catch(function (err) { setDet({ slug: slug, detail: null, loading: false, error: String((err && err.message) || err) }) })
-      }
-      /** 打开一条脑图记忆（非 wiki 条目：tag 筛选命中的 P3/回填记忆没有 wiki 页，走树核 entry_get） */
-      function loadMem(src) {
-        // 记忆视图与日记视图互斥（同 openWiki）
-        setDdet({ ws: '', id: '', data: null, loading: false, error: null, needWorkspace: false, candidates: null })
-        setDet({ slug: '', src: src, detail: null, loading: true, error: null })
-        fetchJson(API + '?op=entry_get&' + qs({ source: src }))
-          .then(function (j) {
-            if (!j || !j.ok) { setDet({ slug: '', src: src, detail: null, loading: false, error: (j && j.error) || '未知错误' }); return }
-            var e = j.entry || {}
-            var tagLine = (e.tags && e.tags.length) ? '\n\n标签：' + e.tags.join(' · ') : ''
-            setDet({ slug: '', src: src, loading: false, error: null, detail: {
-              title: e.source, slug: e.source, status: '记忆',
-              revisions: null, updatedAt: e.grewAt, familyPath: e.ws,
-              intro: (e.head || '') + tagLine,
-              content: e.body || '（正文为空）',
-              children: [], recentRevisions: [],
-            } })
-          })
-          .catch(function (err) { setDet({ slug: '', src: src, detail: null, loading: false, error: String((err && err.message) || err) }) })
-      }
-      function select(slug) {
-        if (!slug) return
-        // 切到条目视图：清掉日记视图，右侧才不会同时挂着两篇内容
-        setDdet({ ws: '', id: '', data: null, loading: false, error: null, needWorkspace: false, candidates: null })
-        loadDetail(slug)
-        if (idx && idx.byFull) {
-          // 选中时把它的祖先链展开，树里能看见
-          var e = null
-          Object.keys(idx.byFull).forEach(function (k) { if (idx.byFull[k].slug === slug) e = idx.byFull[k] })
-          if (e) {
-            var exp = Object.assign({}, expanded)
-            var cur = e
-            var guard = 0
-            while (cur && guard++ < 32) {
-              exp[cur.fullPath] = true
-              cur = idx.byFull[cur.familyPath] === cur ? null : idx.byFull[cur.familyPath]
-            }
-            setExpanded(exp)
-          }
-        }
-      }
-      function toggle(fullPath) {
-        var exp = Object.assign({}, expanded)
-        if (exp[fullPath]) delete exp[fullPath]
-        else exp[fullPath] = true
-        setExpanded(exp)
-      }
-      /** 展开树的下一页（日记族一个年节点下可能几千个孩子） */
-      function growTree(fullPath) {
-        setShown(function (s) {
-          var n = Object.assign({}, s)
-          n[fullPath] = (n[fullPath] || TREE_PAGE) + TREE_PAGE
-          return n
+      // 命中区映射：检索结果 → 其事件所在盆的命中强度（按名次衰减）
+      var hit = {}
+      var hasHit = false
+      if (res.q && res.rows.length && brain.regions) {
+        var evBasin = {}
+        Object.keys(brain.regions).forEach(function (bid) {
+          (brain.regions[bid].events || []).forEach(function (ev) { evBasin[ev] = bid })
+        })
+        res.rows.forEach(function (r, i) {
+          var b = evBasin[r.source]
+          if (!b) return
+          var w = 1 - i / Math.max(8, res.rows.length)
+          hit[b] = Math.max(hit[b] || 0, w)
+          hasHit = true
         })
       }
+      var region = pickId && brain.regions ? brain.regions[pickId] : null
+      var nEntries = props.count || 0
 
-      /* ── 日记枝：懒加载 + 分页 ────────────────────────────────────────────
-       * setDPages 一律用**函数式更新**（读 p 而不是闭包里的 dPages）：
-       * 否则同时展开两个工作区时，后返回的响应会覆盖先返回的（经典 stale state 覆盖）。 */
-      var D_PAGE = 30
-      /** 拉日记枝的一级（各工作区计数）。open=undefined 时保持当前展开态。 */
-      function loadDiaryTree(open) {
-        setDtState(function (s) {
-          return { total: s.total || 0, list: s.list, loading: true, error: null,
-                   open: open === undefined ? s.open : !!open }
-        })
-        fetchJson(API + '?op=diary_tree')
-          .then(function (j) {
-            if (!j || !j.ok) {
-              setDtState(function (s) { return Object.assign({}, s, { loading: false, error: (j && j.error) || '未知错误' }) })
-              return
-            }
-            setDtState(function (s) {
-              return { total: j.total || 0, list: j.workspaces || [], loading: false, error: null, open: s.open }
-            })
-          })
-          .catch(function (err) {
-            setDtState(function (s) { return Object.assign({}, s, { loading: false, error: String((err && err.message) || err) }) })
-          })
-      }
-      function toggleDiaryBranch() {
-        if (dtState.loading) return
-        if (dtState.list || dtState.error) {
-          setDtState(Object.assign({}, dtState, { open: !dtState.open }))
-          return
-        }
-        loadDiaryTree(true)
-      }
-      function loadDiaries(ws, offset) {
-        var off = offset || 0
-        setDPages(function (p) {
-          var cur = p[ws] || { items: [], total: 0 }
-          var n = Object.assign({}, p)
-          n[ws] = { items: cur.items, total: cur.total, loading: true, error: null }
-          return n
-        })
-        fetchJson(API + '?op=diary_list&' + qs({ workspace: ws, limit: D_PAGE, offset: off }))
-          .then(function (j) {
-            setDPages(function (p) {
-              var cur = p[ws] || { items: [], total: 0 }
-              var n = Object.assign({}, p)
-              if (!j || !j.ok) {
-                n[ws] = { items: cur.items, total: cur.total, loading: false, error: (j && j.error) || '未知错误' }
-                return n
-              }
-              n[ws] = { items: (off ? cur.items : []).concat(j.items || []), total: j.total || 0, loading: false, error: null }
-              return n
-            })
-          })
-          .catch(function (err) {
-            setDPages(function (p) {
-              var cur = p[ws] || { items: [], total: 0 }
-              var n = Object.assign({}, p)
-              n[ws] = { items: cur.items, total: cur.total, loading: false, error: String((err && err.message) || err) }
-              return n
-            })
-          })
-      }
-      function toggleDiaryWs(ws) {
-        var open = !dOpen[ws]
-        var n = Object.assign({}, dOpen)
-        n[ws] = open
-        setDOpen(n)
-        var cur = dPages[ws]
-        if (open && !(cur && cur.items && cur.items.length) && !(cur && cur.loading)) loadDiaries(ws, 0)
-      }
-      function openDiary(ws, id) {
-        setDdet({ ws: ws, id: id, data: null, loading: true, error: null, needWorkspace: false, candidates: null })
-        setDet({ slug: '', detail: null, loading: false, error: null })   // 右侧切成日记视图
-        fetchJson(API + '?op=diary_get&' + qs({ id: id, workspace: ws }))
-          .then(function (j) {
-            if (j && j.needWorkspace) {
-              setDdet({ ws: ws, id: id, data: null, loading: false, error: null, needWorkspace: true, candidates: j.candidates || [] })
-              return
-            }
-            if (!j || !j.ok) {
-              setDdet({ ws: ws, id: id, data: null, loading: false, error: (j && j.error) || '未知错误', needWorkspace: false, candidates: null })
-              return
-            }
-            setDdet({ ws: ws, id: id, data: j, loading: false, error: null, needWorkspace: false, candidates: null })
-          })
-          .catch(function (err) {
-            setDdet({ ws: ws, id: id, data: null, loading: false, error: String((err && err.message) || err), needWorkspace: false, candidates: null })
-          })
-      }
-      /** 打开 wiki 条目（并清掉日记视图，让右侧显示条目） */
-      function openWiki(slug) {
-        setDdet({ ws: '', id: '', data: null, loading: false, error: null, needWorkspace: false, candidates: null })
-        select(slug)
-      }
-
-      // 检索：输入防抖 350ms；模式/状态/范围变化立即重跑
-      var pending = React.useRef(null)
-      function runSearch(text, mode, status, scope) {
-        var t = String(text || '').trim()
-        if (!t) { setRes({ hits: null, loading: false, error: null, degraded: null, total: 0, ran: '' }); return }
-        setRes({ hits: null, loading: true, error: null, degraded: null, total: 0, ran: t })
-        // 范围过滤走**服务端**（helper 的 familyPrefix / excludeFamilyPrefix）：
-        // 客户端事后过滤是二次事故——top-N 名额会被要排除的族占掉，返回条数不足。
-        var scopeReq = scopeParams(scope)
-        fetchJson(API + '?op=find&' + qs(Object.assign({ query: t, mode: mode, status: status, top: 40 }, scopeReq)))
-          .then(function (j) {
-            if (!j || !j.ok) {
-              setRes({ hits: null, loading: false, error: (j && j.error) || '未知错误', degraded: null, total: 0, ran: t })
-              return
-            }
-            setRes({ hits: j.results || [], loading: false, error: null, degraded: j.degraded || null, total: j.total || 0, ran: t })
-          })
-          .catch(function (err) {
-            setRes({ hits: null, loading: false, error: String((err && err.message) || err), degraded: null, total: 0, ran: t })
-          })
-      }
-      React.useEffect(function () {
-        if (pending.current) window.clearTimeout(pending.current)
-        if (!q.text.trim()) { setRes({ hits: null, loading: false, error: null, degraded: null, total: 0, ran: '' }); return }
-        pending.current = window.setTimeout(function () { runSearch(q.text, q.mode, q.status, q.scope) }, 350)
-        return function () { if (pending.current) window.clearTimeout(pending.current) }
-      }, [q.text, q.mode, q.status, q.scope])
-
-      // 标签筛选结果也要触发检索视图（ran 由文字搜索和 tag 筛选共同写入）
-      var searching = !!(q.text.trim() || (res.ran && res.hits))
-      // ── 网图视图（v2 图架构·2026-10-30）：检索结果可切「条目｜网图」──
-      var snm = React.useState('list')
-      var netMode = snm[0], setNetMode = snm[1]
-      var sng = React.useState({ data: null, loading: false, error: null, key: '' })
-      var net = sng[0], setNet = sng[1]
-      React.useEffect(function () {
-        if (view !== 'atlas' || !searching || netMode !== 'net') return
-        var text = (q.text || '').trim()
-        var sources = []
-        ;(res.hits || []).forEach(function (r) {
-          if (r.src) sources.push(r.src)
-          else if (r.slug) sources.push('wiki:' + r.slug)
-        })
-        var key = text ? ('t:' + text) : ('s:' + sources.slice(0, 12).join(','))
-        if (!text && !sources.length) { setNet({ data: null, loading: false, error: null, key: key }); return }
-        setNet(function (n) { return n.key === key && n.data ? n : { data: null, loading: true, error: null, key: key } })
-        var url = text
-          ? API + '?op=graph_view&' + qs({ text: text, hops: 2, cap: 60 })
-          : API + '?op=graph_view&' + qs({ sources: sources.slice(0, 12).join(','), hops: 2, cap: 60 })
-        fetchJson(url)
-          .then(function (j) {
-            setNet(function (n) {
-              if (n.key !== key) return n
-              if (!j || !j.ok) return Object.assign({}, n, { loading: false, error: (j && j.error) || '未知错误' })
-              return Object.assign({}, n, { loading: false, error: null, data: j })
-            })
-          })
-          .catch(function (err) {
-            setNet(function (n) { return n.key === key ? Object.assign({}, n, { loading: false, error: String(err) }) : n })
-          })
-      }, [netMode, searching, res.ran, q.text])
-
-      // ── 全局梦簇网图（v0.9.1 主视图）：条目式退休，库按梦簇分区 ──
-      var sgb = React.useState({ data: null, loading: false, error: null, drilled: null, drilledGraph: null, drillLoading: false, drillErr: null, classic: false })
-      var globe = sgb[0], setGlobe = sgb[1]
-      React.useEffect(function () {
-        if (view !== 'atlas' || searching || globe.classic || globe.data || globe.loading || globe.error) return
-        setGlobe(function (g) { return Object.assign({}, g, { loading: true }) })
-        fetchJson(API + '?op=dream')
-          .then(function (j) {
-            if (!j || !j.ok) { setGlobe(function (g) { return Object.assign({}, g, { loading: false, error: (j && j.error) || '未知错误' }) }); return }
-            setGlobe(function (g) { return Object.assign({}, g, { loading: false, data: j, drilled: null, drilledGraph: null }) })
-          })
-          .catch(function (err) { setGlobe(function (g) { return Object.assign({}, g, { loading: false, error: String(err) }) }) })
-      }, [view, searching, globe.classic])
-      function redream() {
-        setGlobe(function (g) { return Object.assign({}, g, { loading: true, error: null, data: null, drilled: null, drilledGraph: null }) })
-        fetchJson(API + '?op=dream&force=1')
-          .then(function (j) {
-            if (!j || !j.ok) { setGlobe(function (g) { return Object.assign({}, g, { loading: false, error: (j && j.error) || '未知错误' }) }); return }
-            setGlobe(function (g) { return Object.assign({}, g, { loading: false, data: j, drilled: null, drilledGraph: null }) })
-          })
-          .catch(function (err) { setGlobe(function (g) { return Object.assign({}, g, { loading: false, error: String(err) }) }) })
-      }
-      function drillCluster(c) {
-        setGlobe(function (g) { return Object.assign({}, g, { drilled: c, drilledGraph: null, drillLoading: true, drillErr: null }) })
-        fetchJson(API + '?op=graph_view&' + qs({ sources: (c.members || []).slice(0, 12).join(','), hops: 1, cap: 50 }))
-          .then(function (j) {
-            setGlobe(function (g) {
-              if (!j || !j.ok) return Object.assign({}, g, { drillLoading: false, drillErr: (j && j.error) || '未知错误' })
-              return Object.assign({}, g, { drillLoading: false, drilledGraph: j })
-            })
-          })
-          .catch(function (err) { setGlobe(function (g) { return Object.assign({}, g, { drillLoading: false, drillErr: String(err) }) }) })
-      }
-      /** 全局簇伪图（useMemo）：节点=Top36 簇，边=簇间 kNN 边计数 */
-      var globeGraph = React.useMemo(function () {
-        var d = globe.data
-        if (!d || !d.clusters) return null
-        var top = (d.clusters || []).slice(0, 36)
-        var local = {}
-        var nodes = top.map(function (c, i) {
-          local[c.id] = i
-          return { source: 'c:' + c.id, head: (c.repHead || c.rep || '').slice(0, 20), size: c.size, deg: 0, seed: false, cluster: c }
-        })
-        var edges = []
-        ;(d.clusterLinks || []).forEach(function (L) {
-          if (local[L[0]] != null && local[L[1]] != null) {
-            edges.push([local[L[0]], local[L[1]], Math.min(0.95, 0.5 + L[2] / 40)])
-            nodes[local[L[0]]].deg += 1; nodes[local[L[1]]].deg += 1
-          }
-        })
-        return { nodes: nodes, edges: edges }
-      }, [globe.data])
-      function openFromGlobe(src) {
-        if (!src) return
-        if (src.indexOf('c:') === 0) {
-          var id = Number(src.slice(2))
-          var c = ((globe.data && globe.data.clusters) || []).filter(function (x) { return x.id === id })[0]
-          if (c) drillCluster(c)
-          return
-        }
-        if (src.indexOf('wiki:') === 0) select(src.slice(5))
-        else loadMem(src)
-      }
-      function renderGlobe() {
-        if (globe.loading) return h('div', { className: 'lbm-empty' }, '正在做梦…（全库游走约 20 秒，结果缓存，条目数变化才重算）')
-        if (globe.error) return h('div', { className: 'lbm-err' }, '做梦失败：' + globe.error,
-          h('div', { style: { marginTop: 8 } }, h('button', { className: 'lbm-btn lbm-btnGhost', onClick: redream }, '重试')))
-        var d = globe.data
-        if (!d || !globeGraph) return h('div', { className: 'lbm-empty' }, '…')
-        // 下钻：簇内成员网图
-        if (globe.drilled) {
-          var c = globe.drilled
-          return h('div', { style: { padding: 10 } },
-            h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 } },
-              h('button', { className: 'lbm-btn lbm-btnGhost', style: { padding: '2px 10px', fontSize: 11 }, onClick: function () { setGlobe(function (g) { return Object.assign({}, g, { drilled: null, drilledGraph: null }) }) } }, '‹ 全局'),
-              h('span', { style: { fontWeight: 600, fontSize: 12 } }, '簇 #' + c.id + ' · ' + c.size + ' 条'),
-              h('span', { style: { color: 'var(--dsw-alias-label-tertiary)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, c.repHead)),
-            globe.drillLoading ? h('div', { className: 'lbm-empty' }, '正在取簇内邻域…')
-              : globe.drillErr ? h('div', { className: 'lbm-err' }, globe.drillErr)
-              : h(NetGraph, { data: globe.drilledGraph, height: 430, onNode: function (src) { if (src && src.indexOf('wiki:') === 0) select(src.slice(5)); else if (src) loadMem(src) } }),
-            h('div', { className: 'lbm-dSecTitle', style: { margin: '10px 0 4px' } }, '成员（按做梦热度）'),
-            (c.members || []).slice(0, 20).map(function (m, i) {
-              return h('button', { key: m, type: 'button', className: 'lbm-hit', style: { display: 'block', width: '100%', textAlign: 'left' },
-                onClick: function () { if (m.indexOf('wiki:') === 0) select(m.slice(5)); else loadMem(m) } },
-                h('div', { className: 'lbm-hitTop' },
-                  h('span', { className: 'lbm-hitTitle' }, m),
-                  h('span', { className: 'lbm-tag' }, i < 3 ? '高热' : '成员')))
-            }))
-        }
-        // 全局：簇网图
-        return h('div', { style: { padding: 10 } },
-          h(NetGraph, { data: globeGraph, height: 470, labelAll: true, onNode: openFromGlobe }),
-          h('div', { className: 'lbm-note', style: { padding: '6px 2px', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' } },
-            h('span', null, d.nClusters + ' 簇 · 展示 Top ' + globeGraph.nodes.length),
-            h('span', null, '路过率 ' + (d.visitedRatio != null ? (d.visitedRatio * 100).toFixed(0) + '%' : '—')),
-            h('span', null, '死节点 ' + (((d.dead || {}).isolated || 0) + ((d.dead || {}).zeroVisit || 0))),
-            d.cachedAt ? h('span', null, '缓存 ' + String(d.cachedAt).slice(5, 16).replace('T', ' ')) : null,
-            h('button', { className: 'lbm-btn lbm-btnGhost', style: { padding: '2px 10px', fontSize: 11 }, onClick: redream, title: '强制全库重算（约 20s）' }, '重做梦')),
-          h('div', { className: 'lbm-note', style: { padding: '0 2px' } }, '节点=梦簇（大小∝记忆数）· 边=簇间关联 · 点击下钻 · 拖拽固定'))
-      }
-      var modeHint = (MODES.filter(function (m) { return m.id === q.mode })[0] || {}).hint || ''
-      // 日记**源**枝的可见集合 = 还没导入成条目的工作区。
-      // 判据：树里有没有 `日记/日记-<工作区>` 这个节点（导入器就是这么建家族的）。
-      // 这样分批导入时源枝会自动变小，导完即消失，不会与树上的「日记」族重复显示。
-      var srcList = React.useMemo(function () {
-        var all = (dtState && dtState.list) || []
-        if (!idx) return all
-        return all.filter(function (w) { return !idx.byFull['日记/日记-' + w.workspace] })
-      }, [dtState.list, idx])
-      var srcTotal = srcList.reduce(function (a, w) { return a + (w.count || 0) }, 0)
-
-      var VIEWS = [
-        { id: 'atlas', label: '脑图' },
-        { id: 'pipe', label: '入库' },
-        { id: 'settings', label: '设置' },
-      ]
-      return h('div', { className: 'lbm-panel' },
-        h('div', { className: 'lbm-header' },
-          h('span', { className: 'lbm-brand' },
-            h('span', { className: 'lbm-brandDot' }),
-            PANEL_LABEL),
-          h('div', { className: 'lbm-tabs', role: 'tablist' },
-            VIEWS.map(function (v) {
-              return h('button', {
-                key: v.id, type: 'button', role: 'tab',
-                className: 'lbm-tab' + (view === v.id ? ' is-on' : ''),
-                onClick: function () { setView(v.id) },
-              }, v.label)
-            })),
-          h('span', { className: 'lbm-spacer' }),
-          h('span', { className: 'lbm-stat' },
-            treeState.error ? '服务异常'
-              : (treeState.loading ? '载入中…' : treeState.count + ' 条记忆')),
-          h('button', { className: 'lbm-btn', type: 'button', onClick: loadTree, title: '重新载入' }, '刷新'),
-          typeof back === 'function' ? h('button', { className: 'lbm-btn', type: 'button', onClick: function () { back() } }, '返回对话') : null),
-
-        view === 'atlas' ? h('div', { className: 'lbm-tools' },
-          h('div', { className: 'lbm-searchRow' },
+      return h('div', { className: 'nao-atlas' },
+        h('div', { className: 'nao-mapWrap' },
+          h(BrainMap, { data: brain.ids ? brain : null, hit: hit, hasHit: hasHit, onPick: function (id) { setPickId(id); setEntry(null) }, empty: brain.error || (brain.loading ? '载入脑区…' : '无脑区') }),
+          h('div', { className: 'nao-searchBar' },
             h('input', {
-              className: 'lbm-input', type: 'text', value: q.text,
-              placeholder: '检索 wiki —— 回车立即搜（默认融合：语义 + 字面）',
-              onChange: function (e) { setQ(Object.assign({}, q, { text: e.target.value })) },
-              onKeyDown: function (e) { if (e.key === 'Enter') { if (pending.current) window.clearTimeout(pending.current); runSearch(q.text, q.mode, q.status, q.scope) } },
+              className: 'nao-search', type: 'text', value: qtext,
+              placeholder: '在脑中检索：输入任意问题，回车',
+              onChange: function (e) { setQtext(e.target.value) },
+              onKeyDown: function (e) { if (e.key === 'Enter') runSearch() },
             }),
-            h('div', { className: 'lbm-seg' }, MODES.map(function (m) {
-              return h('button', {
-                key: m.id, type: 'button', title: m.hint,
-                className: 'lbm-segBtn' + (q.mode === m.id ? ' is-on' : ''),
-                onClick: function () { setQ(Object.assign({}, q, { mode: m.id })) },
-              }, m.label)
-            }))),
-          // tag 筛选独立成行（2026-10-17 修复：此前塞在 searchRow 横向 flex 里被挤成窄条没法用）
-          h(TagFilterPanel, { onResults: function (arr, tags) {
-              if (!arr) { setRes({ hits: null, loading: false, error: null, degraded: null, total: 0, ran: '' }); return }
-              if (arr.err) { setRes({ hits: null, loading: false, error: arr.err, degraded: null, total: 0, ran: '标签：' + tags }); return }
-              setRes({ hits: arr.map(function (x) {
-                var _isWiki = x.source.indexOf('wiki:') === 0
-                return { slug: _isWiki ? x.source.slice(5) : '', src: x.source, title: x.source,
-                         familyPath: '', fullPath: _isWiki ? x.source.slice(5) : (x.ws || ''), intro: x.snippet || '', status: '', revisions: 0,
-                         updatedAt: '', score: 1, semanticScore: null, match: 'tag', fields: null, snippet: x.snippet || '' }
-              }), loading: false, error: null, degraded: null, total: arr.length, ran: '标签：' + tags })
-            } }),
-          h('div', { className: 'lbm-chips' },
-            h('span', { className: 'lbm-chipLabel' }, '状态'),
-            STATUSES.map(function (s) {
-              return h('button', {
-                key: 's' + s.id, type: 'button',
-                className: 'lbm-chip' + (q.status === s.id ? ' is-on' : ''),
-                onClick: function () { setQ(Object.assign({}, q, { status: s.id })) },
-              }, s.label)
-            }),
-            h('span', { className: 'lbm-chipLabel', style: { marginLeft: '10px' } }, '范围'),
-            SCOPES.map(function (s) {
-              return h('button', {
-                key: 'sc' + s.id, type: 'button', title: s.hint,
-                className: 'lbm-chip' + (q.scope === s.id ? ' is-on' : ''),
-                onClick: function () { setQ(Object.assign({}, q, { scope: s.id })) },
-              }, s.label)
-            }),
-            h('span', { className: 'lbm-spacer' }),
-            h('span', { className: 'lbm-note' }, modeHint))) : null,
+            h('button', { className: 'nao-go', type: 'button', onClick: runSearch, disabled: res.busy }, res.busy ? '检索中' : '检索'),
+            res.q ? h('button', { className: 'nao-clear', type: 'button', onClick: function () { setQtext(''); setRes({ busy: false, rows: [], q: '' }) } }, '清除') : null),
+          h('div', { className: 'nao-foot' },
+            h('span', null, (nEntries ? nEntries + ' 元事件' : '—') + ' · ' + (brain.ids ? brain.ids.length : 0) + ' 脑区'),
+            h('span', { className: 'nao-footR' },
+              h('button', { className: 'nao-mini', type: 'button', onClick: loadBrain }, '重绘')))),
 
-        view === 'atlas' ? h('div', { className: 'lbm-body' },
-          h('div', { className: 'lbm-left', style: treeOpen ? null : { display: 'none' } },
-            h('div', { className: 'lbm-paneHead' },
-              searching ? h('span', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
-                h('button', { className: 'lbm-btn lbm-btnGhost', style: { padding: '1px 8px', fontSize: 11 },
-                  onClick: function () { setQ(Object.assign({}, q, { text: '' })) }, title: '清空检索，回到脑图' }, '‹ 脑图'),
-                h('span', null, '检索结果 ' + (res.loading ? '…' : (res.hits ? res.hits.length + ' / ' + res.total : 0))))
-                : h('span', null, globe.classic ? '目录 · 家族树' : '脑图 · 梦簇分区'),
-              searching ? h('span', { className: 'lbm-seg', style: { marginLeft: 'auto' } },
-                h('button', { type: 'button', className: 'lbm-segBtn' + (netMode === 'list' ? ' is-on' : ''),
-                  onClick: function () { setNetMode('list') } }, '条目'),
-                h('button', { type: 'button', className: 'lbm-segBtn' + (netMode === 'net' ? ' is-on' : ''),
-                  onClick: function () { setNetMode('net') } }, '网图'))
-                : h('span', { className: 'lbm-seg', style: { marginLeft: 'auto' } },
-                    h('button', { type: 'button', className: 'lbm-segBtn' + (!globe.classic ? ' is-on' : ''),
-                      onClick: function () { setGlobe(function (g) { return Object.assign({}, g, { classic: false }) }) } }, '簇图'),
-                    h('button', { type: 'button', className: 'lbm-segBtn' + (globe.classic ? ' is-on' : ''),
-                      onClick: function () { setGlobe(function (g) { return Object.assign({}, g, { classic: true }) }) } }, '经典树'))),
-            h('div', { className: 'lbm-scroll' },
-              searching && netMode === 'net'
-                ? (net.loading ? h('div', { className: 'lbm-empty' }, '正在构建邻域网络…（kNN 图现算，约 2s）')
-                  : net.error ? h('div', { className: 'lbm-err' }, '网图失败：' + net.error)
-                    : (!net.data || !(net.data.nodes || []).length) ? h('div', { className: 'lbm-empty' }, '没有可展示的节点。')
-                      : h('div', { style: { padding: 10 } },
-                          h(NetGraph, {
-                            data: net.data, height: 540,
-                            onNode: function (src) {
-                              if (!src) return
-                              if (src.indexOf('wiki:') === 0) select(src.slice(5))
-                              else loadMem(src)
-                            },
-                          }),
-                          h('div', { className: 'lbm-note', style: { padding: '6px 2px' } },
-                            '节点 ' + net.data.nodes.length + ' · 边 ' + (net.data.edges || []).length + ' · 蓝=种子 冷暖=与查询相关度 · 大小=连接度 · 拖拽=固定 · 点击=打开')))
-                : searching
-                ? (res.loading ? h('div', { className: 'lbm-empty' }, '检索中…')
-                  : res.error ? h('div', { className: 'lbm-err' }, '检索失败：' + res.error)
-                    : (!res.hits || !res.hits.length) ? h('div', { className: 'lbm-empty' }, '没有命中。换个词，或切到「语义」模式试试。')
-                      : h('div', null,
-                          res.degraded ? h('div', { className: 'lbm-warn', style: { margin: '10px 14px' } },
-                            '已降级：' + (res.degraded.loss || res.degraded.reason || '语义一路缺席')) : null,
-                          res.hits.map(function (r) {
-                            var sel = r.slug ? det.slug === r.slug : (det.src === r.src)
-                            return h('button', {
-                              key: r.slug || r.src, type: 'button',
-                              className: 'lbm-hit' + (sel ? ' is-sel' : ''),
-                              onClick: function () { if (r.slug) select(r.slug); else if (r.src) loadMem(r.src) },
-                            },
-                              h('div', { className: 'lbm-hitTop' },
-                                h('span', { className: 'lbm-dot', style: { background: STATUS_COLOR[r.status] || '#9ca3af' } }),
-                                h('span', { className: 'lbm-hitTitle' }, r.title || r.slug || r.src),
-                                h('span', { className: 'lbm-score' }, String(r.score)),
-                                h('span', { className: 'lbm-tag' }, r.match === 'keyword' ? '字面' : (r.match === 'hybrid' ? '融合' : (r.match === 'tag' ? '标签' : '语义'))),
-                                (r.match === 'hybrid' && r.semanticScore != null)
-                                  ? h('span', { className: 'lbm-tag' }, '语义 ' + r.semanticScore) : null,
-                                (r.fields && r.fields.length) ? h('span', { className: 'lbm-tag' }, r.fields.join('/')) : null),
-                              h('div', { className: 'lbm-hitPath' }, r.fullPath),
-                              r.snippet ? h('div', { className: 'lbm-hitSnip' }, r.snippet) : null)
-                          })))
-                : !globe.classic ? renderGlobe()
-                : treeState.loading ? h('div', { className: 'lbm-empty' }, '载入家族树…')
-                  : treeState.error ? h('div', { className: 'lbm-err' }, '家族树不可用：' + treeState.error
-                      + '（提示：本面板走插件自带 /api/liubian-wiki 路由，后端=本地 wiki_store 只读副本（.memory_registry/liubian.db）；路由缺席时只读不可用）')
-                    : h('div', null,
-                        (idx.roots || []).map(function (e) {
-                          return h(TreeNode, {
-                            key: e.fullPath, entry: e, kids: idx.kids, expanded: expanded,
-                            onToggle: toggle, onSelect: select, selected: det.slug, depth: 0,
-                            shown: shown, onMore: growTree,
-                          })
-                        }),
-                        idx.orphans.length
-                          ? h('div', null,
-                              h('div', { className: 'lbm-paneHead' }, '孤儿 ' + idx.orphans.length + '（家族父链断裂）'),
-                              idx.orphans.map(function (e) {
-                                return h(TreeNode, {
-                                  key: e.fullPath, entry: e, kids: idx.kids, expanded: expanded,
-                                  onToggle: toggle, onSelect: select, selected: det.slug, depth: 0,
-                                  shown: shown, onMore: growTree,
-                                })
-                              }))
-                          : null,
-                        // ── 日记**源**枝：只有那些「还没导入成条目」的工作区才出现在这里 ──
-                        // 导入后日记已是 `日记/` 族下的真条目，源枝必须自动让位、不能重复显示
-                        // （2026-10-06：导入 中枢 778 篇后，这枝与树上的「日记」族会撞车）。
-                        srcList.length
-                          ? h('div', null,
-                              h('button', {
-                                className: 'lbm-secHead', type: 'button', onClick: toggleDiaryBranch,
-                                title: '尚未导入成 wiki 条目的日记源（已导入的工作区不在此列）',
-                              },
-                                h('span', { className: 'lbm-twist' }, dtState.open ? '▾' : '▸'),
-                                h('span', { className: 'lbm-nodeTitle' }, '日记源（未导入）'),
-                                h('span', { className: 'lbm-revs' },
-                                  dtState.loading ? '…' : (srcTotal || 0) + ' 篇 / ' + srcList.length + ' 区')),
-                              h(DiaryBranch, {
-                                st: Object.assign({}, dtState, { list: srcList }), open: dOpen, pages: dPages, sel: ddet,
-                                onToggleWs: toggleDiaryWs, onLoadMore: loadDiaries, onOpen: openDiary,
-                              }))
-                          : null))),
-          h('div', {
-            onClick: function () { setTreeOpen(!treeOpen) },
-            title: treeOpen ? '折叠家族树' : '展开家族树',
-            style: {
-              width: '14px', flex: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderLeft: treeOpen ? '.5px solid var(--dsw-alias-border-l3)' : 'none',
-              borderRight: treeOpen ? 'none' : '.5px solid var(--dsw-alias-border-l3)',
-              background: 'var(--dsh-alias-interactive-bg-hover)',
-              color: 'var(--dsw-alias-label-tertiary)', fontSize: '10px',
-              userSelect: 'none', minHeight: 0,
-            } },
-            treeOpen ? '◀' : '▶'),
-          h('div', { className: 'lbm-right' },
-            h('div', { className: 'lbm-scroll' },
-              (ddet.loading || ddet.data || ddet.error || ddet.needWorkspace)
-                ? h(DiaryDetail, {
-                    data: ddet.data, loading: ddet.loading, error: ddet.error,
-                    needWorkspace: ddet.needWorkspace, candidates: ddet.candidates,
-                    onPick: function (ws) { openDiary(ws, ddet.id) },
-                    onOpenWiki: openWiki,
-                  })
-                : h(Detail, {
-                    detail: det.detail, loading: det.loading, error: det.error,
-                    onSelect: openWiki, onDiary: openDiary,
-                  }))))
-        : h('div', { className: 'lbm-scroll' },
-            // 非脑图视图：全宽渲染（入库=管线+上传+台账；设置）
-            view === 'pipe' ? h(PipePanel, null)
-            : view === 'settings' ? h(SettingsPanel, null)
-            : null))
+        // 检索结果列
+        res.q ? h('div', { className: 'nao-side' },
+          h('div', { className: 'nao-sideHead' }, '检索 · ' + res.q, h('span', { className: 'nao-dim' }, res.rows.length ? ' ' + res.rows.length + ' 条' : '')),
+          res.error ? h('div', { className: 'nao-err' }, res.error) : null,
+          !res.busy && !res.rows.length && !res.error ? h('div', { className: 'nao-dim nao-pad' }, '无结果') : null,
+          res.rows.map(function (r) {
+            return h('button', {
+              key: r.source, type: 'button', className: 'nao-hit', onClick: function () { openEntry(r.source) },
+            },
+              h('div', { className: 'nao-hitHead' }, String(r.head || '').split('\n')[0].slice(0, 60)),
+              h('div', { className: 'nao-bars' },
+                [['S', r.S, r.S], ['K', r.K, r.K], ['B', r.B, r.B]].map(function (b) {
+                  return h('div', { key: b[0], className: 'nao-bar' },
+                    h('span', { className: 'nao-barL' }, b[0]),
+                    h('i', { style: { width: Math.round(100 * Math.max(0, Math.min(1, b[1] || 0))) + '%' } }))
+                })),
+              h('div', { className: 'nao-hitMeta' }, String(r.source).slice(0, 26) + ' · ' + (r.total || 0)))
+          })) : null,
+
+        // 区详情
+        region && !res.q ? h('div', { className: 'nao-side' },
+          h('div', { className: 'nao-sideHead' }, '脑区', h('button', { className: 'nao-mini', type: 'button', onClick: function () { setPickId(null) } }, '关闭')),
+          h('div', { className: 'nao-rep' }, region.rep || '（无代表句）'),
+          h('div', { className: 'nao-dim nao-pad' }, region.size + ' 元记忆 · ' + region.nEvents + ' 元事件'),
+          (region.events || []).map(function (ev) {
+            return h('button', { key: ev, type: 'button', className: 'nao-evRow', onClick: function () { openEntry(ev) } },
+              String(ev).slice(0, 40))
+          })) : null,
+
+        // 条目详情
+        entry ? h('div', { className: 'nao-detail' },
+          h('div', { className: 'nao-sideHead' },
+            h('span', null, String(entry.source || '').slice(0, 40)),
+            h('button', { className: 'nao-mini', type: 'button', onClick: function () { setEntry(null) } }, '关闭')),
+          entry.loading ? h('div', { className: 'nao-dim nao-pad' }, '载入…')
+            : entry.error ? h('div', { className: 'nao-err' }, entry.error)
+              : h('div', { className: 'nao-detailBody' },
+                h('div', { className: 'nao-detailHead' }, String(entry.head || '').split('\n')[0]),
+                h(Md, { text: entry.body || '' }))) : null)
     }
+
+    /* ══ 睡眠视图：入库即组织（元记忆生长流）═══════════════════════════ */
+    function SleepView(props) {
+      var st = React.useState({ loading: true, items: [], mm: 0, regions: 0, entryRegion: 0 })
+      var s = st[0], setS = st[1]
+      React.useEffect(function () {
+        Promise.all([opGet('recent', { n: 60 }), opGet('mm_stats')]).then(function (arr) {
+          var r1 = arr[0] || {}, r2 = arr[1] || {}
+          setS({ loading: false, items: r1.items || [], mm: r2.mm || 0, regions: r2.regions || 0, entryRegion: r2.entry_region || 0, error: r1.error || r2.error })
+        }).catch(function (e) { setS({ loading: false, items: [], error: String(e) }) })
+      }, [])
+      var items = s.items || []
+      var withMm = items.filter(function (x) { return x.mm > 0 }).length
+      return h('div', { className: 'nao-sleep' },
+        h('div', { className: 'nao-stats' },
+          [['元记忆', s.mm], ['脑区', s.regions], ['已定盆事件', s.entryRegion], ['近 60 条入睡率', items.length ? Math.round(100 * withMm / items.length) + '%' : '—']].map(function (c) {
+            return h('div', { key: c[0], className: 'nao-stat' },
+              h('div', { className: 'nao-statV' }, String(c[1])),
+              h('div', { className: 'nao-statL' }, c[0]))
+          })),
+        s.error ? h('div', { className: 'nao-err nao-pad' }, s.error) : null,
+        h('div', { className: 'nao-stream' },
+          items.map(function (it) {
+            return h('div', { key: it.source, className: 'nao-srow' },
+              h('div', { className: 'nao-stime' }, String(it.grewAt || '').replace('T', ' ').slice(5, 16)),
+              h('div', { className: 'nao-smain' },
+                h('div', { className: 'nao-shead' }, String(it.head || '').split('\n')[0].slice(0, 70)),
+                h('div', { className: 'nao-smeta' },
+                  h('span', { className: 'nao-chip' + (it.mm ? '' : ' is-warn') }, it.mm ? it.mm + ' 句' : '未睡眠'),
+                  it.basin ? h('span', { className: 'nao-chip' }, '区 ' + String(it.basin).slice(0, 14) + (it.basinSize ? ' ·' + it.basinSize : '')) : null,
+                  (it.tags || []).slice(0, 4).map(function (t) { return h('span', { key: t, className: 'nao-tag' }, t) }))))
+          })))
+    }
+
+    /* ══ 面板壳：侧栏导航 + 内容 ═════════════════════════════════════════ */
+    function App(props) {
+      var vs = React.useState('brain')
+      var view = vs[0], setView = vs[1]
+      var ts = React.useState({ loading: true })
+      var tree = ts[0], setTree = ts[1]
+      var loadTree = React.useCallback(function () {
+        opGet('wt_tree', { limit: 1 }).then(function (j) {
+          setTree(j && j.ok ? { loading: false, count: j.count || (j.entries || []).length } : { loading: false, error: (j && j.error) || '读取失败' })
+        }).catch(function (e) { setTree({ loading: false, error: String(e) }) })
+      }, [])
+      React.useEffect(function () { loadTree() }, [loadTree])
+      return h('div', { className: 'nao-app' },
+        h('div', { className: 'nao-rail' },
+          [['brain', '脑图', 'M12 3.6c2 0 3.6 1.6 3.6 3.6S14 10.8 12 10.8 8.4 9.2 8.4 7.2 10 3.6 12 3.6Zm0 9.6c3.3 0 6 1.6 6 3.6v3.6H6V16.8c0-2 2.7-3.6 6-3.6Z'],
+           ['sleep', '睡眠', 'M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17Zm-3 5.2 3.2 4.6H9.4v1.6h5.2v-1.5L11.4 8.7h3V7.2H9Z'],
+           ['pipe', '入库', 'M4.5 6.5h15v3h-15Zm1.5 4.5h12l-1.2 8.5H7.2Z'],
+           ['settings', '设置', 'M12 8.6A3.4 3.4 0 1 0 12 15.4 3.4 3.4 0 0 0 12 8.6Zm8 3.4-.2-1.1 1.4-1.2-1.3-2.2-1.8.5-1-.6-.3-1.9h-2.6l-.3 1.9-1 .6-1.8-.5L5.8 9.7l1.4 1.2L7 12c0 .4 0 .7.1 1.1l-1.4 1.2 1.3 2.2 1.8-.5 1 .6.3 1.9h2.6l.3-1.9 1-.6 1.8.5 1.3-2.2-1.4-1.2c.1-.4.2-.7.2-1.1Z']
+          ].map(function (v) {
+            return h('button', {
+              key: v[0], type: 'button', className: 'nao-railBtn' + (view === v[0] ? ' is-on' : ''),
+              title: v[1], onClick: function () { setView(v[0]) },
+            },
+              h('svg', { width: 20, height: 20, viewBox: '0 0 24 24', 'aria-hidden': true },
+                h('path', { d: v[2], fill: 'currentColor' })),
+              h('span', null, v[1]))
+          })),
+        h('div', { className: 'nao-main' },
+          h('div', { className: 'nao-top' },
+            h('span', { className: 'nao-title' }, view === 'brain' ? '脑图' : view === 'sleep' ? '睡眠 · 入库即组织' : view === 'pipe' ? '入库管线' : '设置'),
+            h('span', { className: 'nao-spacer' }),
+            h('span', { className: 'nao-count' }, tree.error ? '服务异常' : (tree.loading ? '载入中…' : (tree.count || 0) + ' 条')),
+            h('button', { className: 'nao-mini', type: 'button', onClick: loadTree }, '刷新'),
+            typeof props.back === 'function' ? h('button', { className: 'nao-mini', type: 'button', onClick: function () { props.back() } }, '返回对话') : null),
+          h('div', { className: 'nao-body' },
+            view === 'brain' ? h(AtlasView, { count: tree.count }) : null,
+            view === 'sleep' ? h(SleepView) : null,
+            view === 'pipe' ? h(PipePanel) : null,
+            view === 'settings' ? h(SettingsPanel) : null)))
+    }
+
+    var WikiApp = App          // 宿主注册名保持 WikiApp（slots 注入 + 桩测按函数名取）
 
     exports.inject = ['slots']
-    // 自测缝（_dev/client_probe.mjs 用；对宿主完全惰性 —— 宿主只读 inject/apply）
-    // 为什么连组件也暴露：日记枝 / 溯源区块这些**只在有数据时才渲染**的路径，
-    // 光跑一次初始渲染根本走不到 —— 2026-10-06 真机翻车就是同款（抽查没覆盖到的分支等于没测）。
+    // 自测缝（_dev/client_smoke.mjs 用；对宿主完全惰性 —— 宿主只读 inject/apply）
     exports.__test = {
-      mdToBlocks: mdToBlocks, mdInline: mdInline, buildTree: buildTree, Md: Md,
-      Detail: Detail, DiaryBranch: DiaryBranch, DiaryRows: DiaryRows, DiaryDetail: DiaryDetail,
-      TreeNode: TreeNode, scopeParams: scopeParams, TREE_PAGE: TREE_PAGE, DIARY_FAMILY: DIARY_FAMILY,
-      PipePanel: PipePanel, UploadPanel: UploadPanel,
+      mdToBlocks: mdToBlocks, mdInline: mdInline, Md: Md,
+      PipePanel: PipePanel, UploadPanel: UploadPanel, SettingsPanel: SettingsPanel,
+      BrainMap: BrainMap, AtlasView: AtlasView, SleepView: SleepView, App: App, WikiApp: WikiApp,
+      opGet: opGet, scopeParams: scopeParams,
     }
     exports.apply = function (ctx) {
       ctx.effect(function () {
         var style = document.createElement('style')
         style.setAttribute('data-liubian-memory', '1')
-        style.textContent = CSS.join('\n')
+        style.textContent = CSS.join('\n') + '\n' + NAO_CSS.join('\n')
         document.head.appendChild(style)
         return function () { style.remove() }
       }, 'liubian-memory: styles')

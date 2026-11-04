@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-export const PLUGIN_VERSION = '1.0.1'
+export const PLUGIN_VERSION = '1.1.0'
 export const TOOL_NAME = '_dsh_external_dsh_naotu'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/Feng'
@@ -211,7 +211,7 @@ async function embed(cfg, texts) {
 export const PANEL_ID = 'liubianwiki'
 export const ROUTE_PATH = '/api/liubian-wiki'
 export const CONTRACT_VERSION = '1.0'
-const WIKI_OPS = ['health', 'tree', 'get', 'find', 'diary_tree', 'diary_list', 'diary_get', 'uploads', 'wt_tree', 'tag_table', 'tag_filter', 'entry_tags', 'entry_get', 'graph_view', 'dream', 'insert', 'p3_status', 'settings_get', 'settings_save']
+const WIKI_OPS = ['health', 'tree', 'get', 'find', 'diary_tree', 'diary_list', 'diary_get', 'uploads', 'wt_tree', 'tag_table', 'tag_filter', 'entry_tags', 'entry_get', 'graph_view', 'dream', 'insert', 'p3_status', 'settings_get', 'settings_save', 'brain', 'recent', 'mm_stats', 'mm_backfill_gap']
 
 function wikiSendJson(res, status, obj) {
   try {
@@ -449,6 +449,16 @@ function wikiMountPanelRoutes(ctx, cfg) {
                 if (params.source) req3.source = String(params.source)
                 if (params.limit) req3.limit = Number(params.limit)
                 const r = await callCore(cfg, { op, ...req3 })
+                wikiSendJson(res, r.ok ? 200 : 503, r.ok ? r.data : { ok: false, error: r.error })
+                return
+              }
+              if (op === 'brain' || op === 'recent' || op === 'mm_stats' || op === 'mm_backfill_gap') {
+                const rp = {}
+                if (params.topn) rp.topn = Math.max(20, Math.min(400, Number(params.topn)))
+                if (params.n) rp.n = Math.max(1, Math.min(200, Number(params.n)))
+                if (params.limit) rp.limit = Math.max(1, Math.min(500, Number(params.limit)))
+                if (op === 'mm_backfill_gap') rp.embedUrl = cfg.embedUrl
+                const r = await callCore(cfg, { op, ...rp })
                 wikiSendJson(res, r.ok ? 200 : 503, r.ok ? r.data : { ok: false, error: r.error })
                 return
               }
@@ -1849,7 +1859,7 @@ export function apply(ctx, input = {}) {
 
   registerWorldtreeTool(ctx, cfg)
   ctx.logger?.info?.(
-    `[dsh-naotu] v${PLUGIN_VERSION} 世界树插件已挂载：${cfg.dbPath}｜编码 ${cfg.embedUrl}（内置 Q4_K_M）｜检查点调度 ${cfg.ckptEnabled !== false ? '开' : '关'}｜P3 断点续传 开`,
+    `[dsh-naotu] v${PLUGIN_VERSION} 脑图插件已挂载：${cfg.dbPath}｜编码 ${cfg.embedUrl}（内置 Q4_K_M）｜检查点调度 ${cfg.ckptEnabled !== false ? '开' : '关'}｜P3 断点续传 开`,
   )
 }
 
