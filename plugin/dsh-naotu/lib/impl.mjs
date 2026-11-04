@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-export const PLUGIN_VERSION = '1.1.0'
+export const PLUGIN_VERSION = '1.1.1'
 export const TOOL_NAME = '_dsh_external_dsh_naotu'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/Feng'
@@ -211,7 +211,7 @@ async function embed(cfg, texts) {
 export const PANEL_ID = 'liubianwiki'
 export const ROUTE_PATH = '/api/liubian-wiki'
 export const CONTRACT_VERSION = '1.0'
-const WIKI_OPS = ['health', 'tree', 'get', 'find', 'diary_tree', 'diary_list', 'diary_get', 'uploads', 'wt_tree', 'tag_table', 'tag_filter', 'entry_tags', 'entry_get', 'graph_view', 'dream', 'insert', 'p3_status', 'settings_get', 'settings_save', 'brain', 'recent', 'mm_stats', 'mm_backfill_gap']
+const WIKI_OPS = ['health', 'tree', 'get', 'find', 'diary_tree', 'diary_list', 'diary_get', 'uploads', 'wt_tree', 'tag_table', 'tag_filter', 'entry_tags', 'entry_get', 'graph_view', 'dream', 'insert', 'p3_status', 'settings_get', 'settings_save', 'brain', 'recent', 'stats', 'mm_stats', 'mm_backfill_gap']
 
 function wikiSendJson(res, status, obj) {
   try {
@@ -452,7 +452,7 @@ function wikiMountPanelRoutes(ctx, cfg) {
                 wikiSendJson(res, r.ok ? 200 : 503, r.ok ? r.data : { ok: false, error: r.error })
                 return
               }
-              if (op === 'brain' || op === 'recent' || op === 'mm_stats' || op === 'mm_backfill_gap') {
+              if (op === 'brain' || op === 'recent' || op === 'stats' || op === 'mm_stats' || op === 'mm_backfill_gap') {
                 const rp = {}
                 if (params.topn) rp.topn = Math.max(20, Math.min(400, Number(params.topn)))
                 if (params.n) rp.n = Math.max(1, Math.min(200, Number(params.n)))

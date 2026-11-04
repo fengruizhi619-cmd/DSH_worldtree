@@ -244,7 +244,7 @@ window.__ModuleLoader__.load({
     ]
     /* ══ 脑图 v1 · 新壳样式（nao- 前缀；令牌全部走宿主 var(--dsw-alias-*)）══ */
     var NAO_CSS = [
-      '.nao-app{display:flex;height:100%;min-height:0;background:var(--dsw-alias-bg-primary,#101014);color:var(--dsw-alias-label-primary,#e8e8ef)}',
+      '.nao-app{display:flex;height:100%;min-height:0;width:100%;flex:1 1 auto;box-sizing:border-box;overflow:hidden;background:var(--dsw-alias-bg-primary,#101014);color:var(--dsw-alias-label-primary,#e8e8ef)}',
       '.nao-rail{width:56px;flex:none;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0;border-right:1px solid var(--dsw-alias-border-secondary,rgba(127,127,127,.14))}',
       '.nao-railBtn{width:48px;border:0;background:transparent;color:var(--dsw-alias-label-secondary,#9a9aa8);display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;border-radius:10px;font-size:10px;cursor:pointer;line-height:1}',
       '.nao-railBtn:hover{background:rgba(124,92,255,.10);color:var(--dsw-alias-label-primary,#e8e8ef)}',
@@ -259,7 +259,7 @@ window.__ModuleLoader__.load({
       '.nao-body{flex:1;min-height:0;display:flex;position:relative}',
       // 脑图
       '.nao-atlas{flex:1;min-width:0;display:flex;position:relative}',
-      '.nao-mapWrap{position:relative;flex:1;min-width:0}',
+      '.nao-mapWrap{position:relative;flex:1;min-width:0;min-height:280px;overflow:hidden}',
       '.nao-mapH{position:absolute;inset:0}',
       '.nao-map{width:100%;height:100%;display:block;cursor:grab}',
       '.nao-map:active{cursor:grabbing}',
@@ -833,12 +833,22 @@ window.__ModuleLoader__.load({
       return fetchJson(s)
     }
 
-    /* ══ 脑区地形图（canvas）═══════════════════════════════════════════════
-       数据：op=brain → {ids, regions:{id:{size,rep,events,nEvents}}, links:[[a,b,w]]}
-       布局：环形初始 + 力导向（斥力∝size 和，边吸引∝w）；渲染=柔光圆 + 标签
-       交互：拖拽平移 / 滚轮缩放 / hover 提示 / 点击开区详情 / 检索命中高亮 */
-    var BRAIN_ACCENT = 'var(--dsw-alias-brand-primary)'
+    /* ── 错误边界：面板内任何子树渲染抛错，显示原因而不是整块空白 ─────────────
+       实现说明：不依赖 class 组件能力（宿主 React 子集情况未知），用 try 探测
+       Component.prototype；不可用时退化为直接渲染 children（渲染错误仍冒泡到宿主）。*/
+    function PanelBoundary(props) {
+      var st = React.useState(null)
+      var err = st[0], setErr = st[1]
+      if (err) {
+        return h('div', { className: 'nao-err nao-pad' }, '面板渲染失败：' + String((err && err.message) || err))
+      }
+      return props.children
+    }
 
+    /* ══ 脑区地形图（canvas，零 React 状态：布局/相机/悬停全部走 ref + 手动重绘）══
+       历史 bug（v1.1.0）：本组件曾用 useState 存 cam，宿主渲染器下该状态槽出现
+       null → 首帧读 ui.cam 抛 TypeError，整个面板空白。改为纯 ref 后不依赖状态槽。
+       数据：op=brain → {ids, regions:{id:{size,rep,events,nEvents}}, links:[[a,b,w]]} */
     function hash01(str) {
       var x = 2166136261
       for (var i = 0; i < str.length; i++) { x ^= str.charCodeAt(i); x = Math.imul(x, 16777619) }
@@ -846,31 +856,100 @@ window.__ModuleLoader__.load({
     }
 
     function BrainMap(props) {
-      var ref = React.useRef(null)
-      var st = React.useState({ hover: null, cam: { x: 0, y: 0, k: 1 } })
-      var ui = st[0], setUi = st[1]
-      var pos = React.useRef(null)      // id → [x,y]
-      var drag = React.useRef(null)
-      var data = props.data
+      var canvasR = React.useRef(null)
+      var tipR = React.useRef(null)
+      var posR = React.useRef(null)          // id → [x,y]
+      var camR = React.useRef({ x: 0, y: 0, k: 1 })
+      var hoverR = React.useRef(null)
+      var dragR = React.useRef(null)
+      var dataR = React.useRef(null)
+      var propsR = React.useRef(props)
+      propsR.current = props
+      dataR.current = props && props.data
 
-      // 布局：数据变化后跑一次力导向，结果缓存
+      function draw() {
+        var canvas = canvasR.current
+        if (!canvas) return
+        var ctx = canvas.getContext && canvas.getContext('2d')
+        if (!ctx) return
+        var p0 = propsR.current || {}
+        var dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1
+        var W = canvas.clientWidth || 800
+        var H = canvas.clientHeight || 520
+        if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
+          canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr)
+        }
+        try { ctx.setTransform(dpr, 0, 0, dpr, 0, 0) } catch (_) { }
+        ctx.clearRect(0, 0, W, H)
+        var d = dataR.current, P = posR.current
+        if (!d || !d.ids || !P) {
+          ctx.fillStyle = 'rgba(127,127,127,.55)'; ctx.font = '13px system-ui'
+          ctx.fillText(p0.empty || '载入脑区…', 24, 36)
+          return
+        }
+        var cam = camR.current || { x: 0, y: 0, k: 1 }
+        ctx.save()
+        ctx.translate(W / 2 + cam.x, H / 2 + cam.y)
+        ctx.scale(cam.k || 1, cam.k || 1)
+        var hit = p0.hit || {}
+        var hasHit = !!p0.hasHit
+        ctx.lineWidth = 1
+        ;(d.links || []).forEach(function (e) {
+          var A = P[d.ids[e[0]]], B = P[d.ids[e[1]]]
+          if (!A || !B) return
+          ctx.strokeStyle = 'rgba(124,92,255,' + Math.min(0.28, 0.04 + e[2] * 0.002) + ')'
+          ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke()
+        })
+        d.ids.forEach(function (id) {
+          var r = (d.regions && d.regions[id]) || { size: 1, rep: '' }
+          var p = P[id]
+          if (!p) return
+          var rad = Math.max(9, Math.sqrt(r.size || 1) * 6)
+          var hv = hit[id] || 0
+          var dim = hasHit && !hv
+          var g = ctx.createRadialGradient(p[0], p[1], rad * 0.2, p[0], p[1], rad)
+          var base = 0.10 + 0.16 * hash01(id)
+          if (hv) {
+            g.addColorStop(0, 'rgba(124,92,255,' + (0.55 + 0.35 * hv) + ')')
+            g.addColorStop(1, 'rgba(124,92,255,0.05)')
+          } else {
+            g.addColorStop(0, 'rgba(124,92,255,' + (dim ? base * 0.5 : base + 0.10) + ')')
+            g.addColorStop(1, 'rgba(124,92,255,0.02)')
+          }
+          ctx.fillStyle = g
+          ctx.beginPath(); ctx.arc(p[0], p[1], rad, 0, Math.PI * 2); ctx.fill()
+          if (hv) {
+            ctx.strokeStyle = 'rgba(124,92,255,' + (0.6 + 0.4 * hv) + ')'
+            ctx.lineWidth = 1.4; ctx.stroke()
+          }
+          var isHover = hoverR.current === id
+          if (rad > 22 || isHover || hv) {
+            ctx.fillStyle = hv ? 'rgba(255,255,255,.92)' : (isHover ? 'rgba(255,255,255,.85)' : 'rgba(200,200,215,.55)')
+            ctx.font = (rad > 34 ? 12 : 11) + 'px system-ui'
+            var label = String(r.rep || '').slice(0, rad > 34 ? 10 : 6)
+            if (label) ctx.fillText(label, p[0] - label.length * 3, p[1] + 4)
+          }
+        })
+        ctx.restore()
+      }
+
+      // 布局：数据变化后跑一次力导向（纯计算，不碰状态）
       React.useEffect(function () {
-        var d = data
-        if (!d || !d.ids || !d.ids.length) { pos.current = null; return }
-        var ids = d.ids
+        var d = props && props.data
+        var ids = d && d.ids
+        if (!ids || !ids.length) { posR.current = null; draw(); return }
         var n = ids.length
         var P = ids.map(function (id, i) {
           var a = (i / n) * Math.PI * 2
           var rr = 180 + 260 * hash01(id)
           return [Math.cos(a) * rr, Math.sin(a) * rr]
         })
-        var size = ids.map(function (id) { return Math.max(8, Math.sqrt(d.regions[id].size) * 6) })
+        var size = ids.map(function (id) { return Math.max(8, Math.sqrt(((d.regions || {})[id] || {}).size || 1) * 6) })
         var idx = {}
         ids.forEach(function (id, i) { idx[id] = i })
         var L = (d.links || []).filter(function (e) { return idx[e[0]] !== undefined && idx[e[1]] !== undefined })
         for (var it = 0; it < 300; it++) {
           var F = P.map(function () { return [0, 0] })
-          // 斥力
           for (var i = 0; i < n; i++) {
             for (var j = i + 1; j < n; j++) {
               var dx = P[i][0] - P[j][0], dy = P[i][1] - P[j][1]
@@ -881,17 +960,15 @@ window.__ModuleLoader__.load({
               F[j][0] -= dx / dd * f; F[j][1] -= dy / dd * f
             }
           }
-          // 边吸引
           L.forEach(function (e) {
             var a = idx[e[0]], b = idx[e[1]]
-            var dx = P[b][0] - P[a][0], dy = P[b][1] - P[a][1]
-            var dd = Math.sqrt(dx * dx + dy * dy) + 1
+            var ex = P[b][0] - P[a][0], ey = P[b][1] - P[a][1]
+            var ed = Math.sqrt(ex * ex + ey * ey) + 1
             var target = 90 + size[a] + size[b]
-            var f = (dd - target) * 0.012 * Math.min(3, Math.sqrt(e[2]) * 0.4)
-            F[a][0] += dx / dd * f; F[a][1] += dy / dd * f
-            F[b][0] -= dx / dd * f; F[b][1] -= dy / dd * f
+            var ef = (ed - target) * 0.012 * Math.min(3, Math.sqrt(e[2]) * 0.4)
+            F[a][0] += ex / ed * ef; F[a][1] += ey / ed * ef
+            F[b][0] -= ex / ed * ef; F[b][1] -= ey / ed * ef
           })
-          // 向心 + 位移
           for (var k = 0; k < n; k++) {
             F[k][0] -= P[k][0] * 0.0025; F[k][1] -= P[k][1] * 0.0025
             P[k][0] += Math.max(-14, Math.min(14, F[k][0]))
@@ -900,163 +977,146 @@ window.__ModuleLoader__.load({
         }
         var map = {}
         ids.forEach(function (id, i) { map[id] = P[i] })
-        pos.current = map
-        setUi(function (u) { return Object.assign({}, u) })
-      }, [data])
+        posR.current = map
+        draw()
+      }, [props && props.data])
 
-      // 绘制
+      // 挂载 / 尺寸变化重绘
       React.useEffect(function () {
-        var canvas = ref.current
+        draw()
+        var canvas = canvasR.current
         if (!canvas) return
-        var ctx = canvas.getContext('2d')
-        var dpr = window.devicePixelRatio || 1
-        var W = canvas.clientWidth, H = canvas.clientHeight
-        if (canvas.width !== W * dpr || canvas.height !== H * dpr) {
-          canvas.width = W * dpr; canvas.height = H * dpr
+        var onResize = function () { draw() }
+        var ro = null
+        try { if (typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(onResize); ro.observe(canvas) } } catch (_) { }
+        if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('resize', onResize)
+        var t = setTimeout(function () { draw() }, 60)
+        return function () {
+          if (ro) { try { ro.disconnect() } catch (_) { } }
+          if (typeof window !== 'undefined' && window.removeEventListener) window.removeEventListener('resize', onResize)
+          try { clearTimeout(t) } catch (_) { }
         }
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-        ctx.clearRect(0, 0, W, H)
-        var d = data, P = pos.current
-        if (!d || !P) {
-          ctx.fillStyle = 'rgba(127,127,127,.55)'; ctx.font = '13px system-ui'
-          ctx.fillText(props.empty || '载入脑区…', 24, 36); return
-        }
-        var cam = ui.cam
-        ctx.save()
-        ctx.translate(W / 2 + cam.x, H / 2 + cam.y)
-        ctx.scale(cam.k, cam.k)
-        var ids = d.ids
-        var hit = props.hit || {}     // region id（或 ''）→ 命中强度 0..1
-        // 边
-        ctx.lineWidth = 1
-        ;(d.links || []).forEach(function (e) {
-          var A = P[d.ids[e[0]]], B = P[d.ids[e[1]]]
-          if (!A || !B) return
-          ctx.strokeStyle = 'rgba(124,92,255,' + Math.min(0.28, 0.04 + e[2] * 0.002) + ')'
-          ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke()
-        })
-        // 区
-        ids.forEach(function (id, i) {
-          var r = d.regions[id]
-          var p = P[id]
-          if (!p) return
-          var rad = Math.max(9, Math.sqrt(r.size) * 6)
-          var h = hit[id] || 0
-          var dim = props.hasHit && !h
-          var g = ctx.createRadialGradient(p[0], p[1], rad * 0.2, p[0], p[1], rad)
-          var base = 0.10 + 0.16 * hash01(id)
-          if (h) {
-            g.addColorStop(0, 'rgba(124,92,255,' + (0.55 + 0.35 * h) + ')')
-            g.addColorStop(1, 'rgba(124,92,255,0.05)')
-          } else {
-            g.addColorStop(0, 'rgba(124,92,255,' + (dim ? base * 0.5 : base + 0.10) + ')')
-            g.addColorStop(1, 'rgba(124,92,255,0.02)')
-          }
-          ctx.fillStyle = g
-          ctx.beginPath(); ctx.arc(p[0], p[1], rad, 0, Math.PI * 2); ctx.fill()
-          if (h) {
-            ctx.strokeStyle = 'rgba(124,92,255,' + (0.6 + 0.4 * h) + ')'
-            ctx.lineWidth = 1.4; ctx.stroke()
-          }
-          var isHover = ui.hover === id
-          if (rad > 22 || isHover || h) {
-            ctx.fillStyle = h ? 'rgba(255,255,255,.92)' : (isHover ? 'rgba(255,255,255,.85)' : 'rgba(200,200,215,.55)')
-            ctx.font = (rad > 34 ? 12 : 11) + 'px system-ui'
-            var label = String(r.rep || '').slice(0, rad > 34 ? 10 : 6)
-            ctx.fillText(label, p[0] - label.length * 3, p[1] + 4)
-          }
-        })
-        ctx.restore()
-      })
+      }, [])
 
       function local(e) {
-        var c = ref.current.getBoundingClientRect()
-        return [e.clientX - c.left, e.clientY - c.top]
+        var c = canvasR.current
+        if (!c || !c.getBoundingClientRect) return [0, 0]
+        var r = c.getBoundingClientRect()
+        return [e.clientX - r.left, e.clientY - r.top]
       }
       function toWorld(mx, my) {
-        var canvas = ref.current
-        var W = canvas.clientWidth, H = canvas.clientHeight
-        var cam = ui.cam
-        return [(mx - W / 2 - cam.x) / cam.k, (my - H / 2 - cam.y) / cam.k]
+        var c = canvasR.current
+        var W = (c && c.clientWidth) || 800, H = (c && c.clientHeight) || 520
+        var cam = camR.current || { x: 0, y: 0, k: 1 }
+        var k = cam.k || 1
+        return [(mx - W / 2 - cam.x) / k, (my - H / 2 - cam.y) / k]
       }
       function pick(mx, my) {
-        var d = data, P = pos.current
-        if (!d || !P) return null
+        var d = dataR.current, P = posR.current
+        if (!d || !d.ids || !P) return null
         var w = toWorld(mx, my)
         var best = null, bd = 1e9
         d.ids.forEach(function (id) {
           var p = P[id]; if (!p) return
-          var rad = Math.max(9, Math.sqrt(d.regions[id].size) * 6)
-          var dd = (p[0] - w[0]) * (p[0] - w[0]) + (p[1] - w[1]) * (p[1] - w[1])
+          var rad = Math.max(9, Math.sqrt((((d.regions || {})[id] || {}).size) || 1) * 6)
+          var ddx = p[0] - w[0], ddy = p[1] - w[1]
+          var dd = ddx * ddx + ddy * ddy
           if (dd < rad * rad && dd < bd) { bd = dd; best = id }
         })
         return best
       }
-      var hv = ui.hover && data && data.regions ? data.regions[ui.hover] : null
+      function showTip(mx, my) {
+        var tip = tipR.current
+        var d = dataR.current
+        var id = hoverR.current
+        if (!tip) return
+        var r = id && d && d.regions ? d.regions[id] : null
+        if (!r) { tip.style.display = 'none'; return }
+        tip.style.display = 'block'
+        tip.style.left = (mx + 14) + 'px'
+        tip.style.top = (my + 12) + 'px'
+        tip.textContent = String(r.rep || '（无代表句）').slice(0, 48) + ' · ' + (r.size || 0) + ' 元记忆'
+      }
+
       return h('div', { className: 'nao-mapH' },
         h('canvas', {
-          ref: ref, className: 'nao-map',
+          ref: canvasR, className: 'nao-map',
           onMouseDown: function (e) {
-            var p = local(e); drag.current = { x: p[0], y: p[1], cam: Object.assign({}, ui.cam), moved: 0 }
+            var p = local(e)
+            dragR.current = { x: p[0], y: p[1], cam: Object.assign({}, camR.current), moved: 0 }
           },
           onMouseMove: function (e) {
             var p = local(e)
-            if (drag.current) {
-              var dx = p[0] - drag.current.x, dy = p[1] - drag.current.y
-              drag.current.moved += Math.abs(dx) + Math.abs(dy)
-              setUi(function (u) { return Object.assign({}, u, { cam: { x: drag.current.cam.x + dx, y: drag.current.cam.y + dy, k: drag.current.cam.k } }) })
+            var dg = dragR.current
+            if (dg) {
+              var dx = p[0] - dg.x, dy = p[1] - dg.y
+              dg.moved += Math.abs(dx) + Math.abs(dy)
+              var c0 = dg.cam || { x: 0, y: 0, k: 1 }
+              camR.current = { x: c0.x + dx, y: c0.y + dy, k: c0.k || 1 }
+              draw()
               return
             }
             var id = pick(p[0], p[1])
-            if ((id || null) !== (ui.hover || null)) setUi(function (u) { return Object.assign({}, u, { hover: id }) })
+            if (id !== hoverR.current) { hoverR.current = id; draw() }
+            showTip(p[0], p[1])
           },
           onMouseUp: function (e) {
-            var d0 = drag.current
-            drag.current = null
-            if (!d0 || d0.moved > 6) return
+            var dg = dragR.current
+            dragR.current = null
+            if (!dg || dg.moved > 6) return
             var p = local(e)
             var id = pick(p[0], p[1])
-            if (id && props.onPick) props.onPick(id)
+            if (id && props && props.onPick) props.onPick(id)
           },
-          onMouseLeave: function () { drag.current = null; setUi(function (u) { return Object.assign({}, u, { hover: null }) }) },
+          onMouseLeave: function () {
+            dragR.current = null
+            if (hoverR.current !== null) { hoverR.current = null; draw() }
+            var tip = tipR.current
+            if (tip) tip.style.display = 'none'
+          },
           onWheel: function (e) {
-            e.preventDefault()
-            var k = Math.max(0.5, Math.min(3, ui.cam.k * (e.deltaY > 0 ? 0.92 : 1.08)))
-            setUi(function (u) { return Object.assign({}, u, { cam: { x: u.cam.x, y: u.cam.y, k: k } }) })
+            if (e.preventDefault) e.preventDefault()
+            var cam = camR.current || { x: 0, y: 0, k: 1 }
+            var k = Math.max(0.5, Math.min(3, (cam.k || 1) * (e.deltaY > 0 ? 0.92 : 1.08)))
+            camR.current = { x: cam.x, y: cam.y, k: k }
+            draw()
           },
         }),
-        hv ? h('div', { className: 'nao-tip' },
-          h('div', { className: 'nao-tipHead' }, String(hv.rep || '').slice(0, 44)),
-          h('div', { className: 'nao-tipMeta' }, hv.size + ' 元记忆 · ' + hv.nEvents + ' 事件')) : null)
+        h('div', { className: 'nao-tip', ref: tipR, style: { display: 'none' } }))
     }
 
     /* ══ 脑图视图：地形 + 检索 ═══════════════════════════════════════════ */
     function AtlasView(props) {
-      var bs = React.useState({ loading: true })
-      var brain = bs[0], setBrain = bs[1]
+      var bs = React.useState(function () { return { loading: true, ids: null } })
+      var brain = bs[0] || { loading: true, ids: null }
+      var setBrain = bs[1]
       var qs1 = React.useState('')
-      var qtext = qs1[0], setQtext = qs1[1]
+      var qtext = qs1[0] || ''
+      var setQtext = qs1[1]
       var rs = React.useState({ busy: false, rows: [], q: '' })
-      var res = rs[0], setRes = rs[1]
+      var res = rs[0] || { busy: false, rows: [], q: '' }
+      var setRes = rs[1]
       var ds = React.useState(null)
-      var pickId = ds[0], setPickId = ds[1]
+      var pickId = ds[0]
+      var setPickId = ds[1]
       var es = React.useState(null)
-      var entry = es[0], setEntry = es[1]
+      var entry = es[0]
+      var setEntry = es[1]
 
       var loadBrain = React.useCallback(function () {
-        setBrain(function (b) { return Object.assign({}, b, { loading: true }) })
+        setBrain(function (b) { return Object.assign({}, b || {}, { loading: true }) })
         opGet('brain', { topn: 140 }).then(function (j) {
-          setBrain(j && j.ok ? Object.assign({}, j, { loading: false }) : { loading: false, error: (j && j.error) || '读取失败' })
-        }).catch(function (e) { setBrain({ loading: false, error: String(e) }) })
+          setBrain(j && j.ok ? Object.assign({}, j, { loading: false }) : { loading: false, ids: null, error: (j && j.error) || '读取失败' })
+        }).catch(function (e) { setBrain({ loading: false, ids: null, error: String(e) }) })
       }, [])
       React.useEffect(function () { loadBrain() }, [loadBrain])
 
       function runSearch() {
-        var q = qtext.trim()
+        var q = String(qtext || '').trim()
         if (!q) { setRes({ busy: false, rows: [], q: '' }); return }
         setRes({ busy: true, rows: [], q: q })
         opGet('race', { text: q, want: 20 }).then(function (j) {
-          if (j && j.ok) setRes({ busy: false, rows: j.ranked || [], q: q, qtags: j.qtags })
+          if (j && j.ok) setRes({ busy: false, rows: j.ranked || [], q: q })
           else setRes({ busy: false, rows: [], q: q, error: (j && j.error) || '检索失败' })
         }).catch(function (e) { setRes({ busy: false, rows: [], q: q, error: String(e) }) })
       }
@@ -1067,28 +1127,34 @@ window.__ModuleLoader__.load({
         }).catch(function (e) { setEntry({ loading: false, source: src, error: String(e) }) })
       }
 
-      // 命中区映射：检索结果 → 其事件所在盆的命中强度（按名次衰减）
+      // 命中区映射：检索结果 → 事件所在盆 → 命中强度（按名次衰减）
       var hit = {}
       var hasHit = false
-      if (res.q && res.rows.length && brain.regions) {
+      var rows = res.rows || []
+      if (res.q && rows.length && brain.regions) {
         var evBasin = {}
         Object.keys(brain.regions).forEach(function (bid) {
-          (brain.regions[bid].events || []).forEach(function (ev) { evBasin[ev] = bid })
+          ;((brain.regions[bid] || {}).events || []).forEach(function (ev) { evBasin[ev] = bid })
         })
-        res.rows.forEach(function (r, i) {
+        rows.forEach(function (r, i) {
           var b = evBasin[r.source]
           if (!b) return
-          var w = 1 - i / Math.max(8, res.rows.length)
+          var w = 1 - i / Math.max(8, rows.length)
           hit[b] = Math.max(hit[b] || 0, w)
           hasHit = true
         })
       }
       var region = pickId && brain.regions ? brain.regions[pickId] : null
-      var nEntries = props.count || 0
+      var nEntries = props && props.count ? props.count : 0
 
       return h('div', { className: 'nao-atlas' },
         h('div', { className: 'nao-mapWrap' },
-          h(BrainMap, { data: brain.ids ? brain : null, hit: hit, hasHit: hasHit, onPick: function (id) { setPickId(id); setEntry(null) }, empty: brain.error || (brain.loading ? '载入脑区…' : '无脑区') }),
+          h(PanelBoundary, null,
+            h(BrainMap, {
+              data: brain.ids ? brain : null, hit: hit, hasHit: hasHit,
+              onPick: function (id) { setPickId(id); setEntry(null) },
+              empty: brain.error || (brain.loading ? '载入脑区…' : '无脑区'),
+            })),
           h('div', { className: 'nao-searchBar' },
             h('input', {
               className: 'nao-search', type: 'text', value: qtext,
@@ -1099,22 +1165,21 @@ window.__ModuleLoader__.load({
             h('button', { className: 'nao-go', type: 'button', onClick: runSearch, disabled: res.busy }, res.busy ? '检索中' : '检索'),
             res.q ? h('button', { className: 'nao-clear', type: 'button', onClick: function () { setQtext(''); setRes({ busy: false, rows: [], q: '' }) } }, '清除') : null),
           h('div', { className: 'nao-foot' },
-            h('span', null, (nEntries ? nEntries + ' 元事件' : '—') + ' · ' + (brain.ids ? brain.ids.length : 0) + ' 脑区'),
+            h('span', null, (nEntries ? nEntries + ' 元事件' : '—') + ' · ' + ((brain.ids && brain.ids.length) || 0) + ' 脑区'),
             h('span', { className: 'nao-footR' },
               h('button', { className: 'nao-mini', type: 'button', onClick: loadBrain }, '重绘')))),
 
-        // 检索结果列
         res.q ? h('div', { className: 'nao-side' },
-          h('div', { className: 'nao-sideHead' }, '检索 · ' + res.q, h('span', { className: 'nao-dim' }, res.rows.length ? ' ' + res.rows.length + ' 条' : '')),
+          h('div', { className: 'nao-sideHead' }, '检索 · ' + res.q, h('span', { className: 'nao-dim' }, rows.length ? ' ' + rows.length + ' 条' : '')),
           res.error ? h('div', { className: 'nao-err' }, res.error) : null,
-          !res.busy && !res.rows.length && !res.error ? h('div', { className: 'nao-dim nao-pad' }, '无结果') : null,
-          res.rows.map(function (r) {
+          !res.busy && !rows.length && !res.error ? h('div', { className: 'nao-dim nao-pad' }, '无结果') : null,
+          rows.map(function (r) {
             return h('button', {
               key: r.source, type: 'button', className: 'nao-hit', onClick: function () { openEntry(r.source) },
             },
               h('div', { className: 'nao-hitHead' }, String(r.head || '').split('\n')[0].slice(0, 60)),
               h('div', { className: 'nao-bars' },
-                [['S', r.S, r.S], ['K', r.K, r.K], ['B', r.B, r.B]].map(function (b) {
+                [['S', r.S], ['K', r.K], ['B', r.B]].map(function (b) {
                   return h('div', { key: b[0], className: 'nao-bar' },
                     h('span', { className: 'nao-barL' }, b[0]),
                     h('i', { style: { width: Math.round(100 * Math.max(0, Math.min(1, b[1] || 0))) + '%' } }))
@@ -1122,17 +1187,15 @@ window.__ModuleLoader__.load({
               h('div', { className: 'nao-hitMeta' }, String(r.source).slice(0, 26) + ' · ' + (r.total || 0)))
           })) : null,
 
-        // 区详情
         region && !res.q ? h('div', { className: 'nao-side' },
           h('div', { className: 'nao-sideHead' }, '脑区', h('button', { className: 'nao-mini', type: 'button', onClick: function () { setPickId(null) } }, '关闭')),
           h('div', { className: 'nao-rep' }, region.rep || '（无代表句）'),
-          h('div', { className: 'nao-dim nao-pad' }, region.size + ' 元记忆 · ' + region.nEvents + ' 元事件'),
+          h('div', { className: 'nao-dim nao-pad' }, (region.size || 0) + ' 元记忆 · ' + (region.nEvents || 0) + ' 元事件'),
           (region.events || []).map(function (ev) {
             return h('button', { key: ev, type: 'button', className: 'nao-evRow', onClick: function () { openEntry(ev) } },
               String(ev).slice(0, 40))
           })) : null,
 
-        // 条目详情
         entry ? h('div', { className: 'nao-detail' },
           h('div', { className: 'nao-sideHead' },
             h('span', null, String(entry.source || '').slice(0, 40)),
@@ -1147,12 +1210,13 @@ window.__ModuleLoader__.load({
     /* ══ 睡眠视图：入库即组织（元记忆生长流）═══════════════════════════ */
     function SleepView(props) {
       var st = React.useState({ loading: true, items: [], mm: 0, regions: 0, entryRegion: 0 })
-      var s = st[0], setS = st[1]
+      var s = st[0] || { loading: true, items: [], mm: 0, regions: 0, entryRegion: 0 }
+      var setS = st[1]
       React.useEffect(function () {
         Promise.all([opGet('recent', { n: 60 }), opGet('mm_stats')]).then(function (arr) {
           var r1 = arr[0] || {}, r2 = arr[1] || {}
           setS({ loading: false, items: r1.items || [], mm: r2.mm || 0, regions: r2.regions || 0, entryRegion: r2.entry_region || 0, error: r1.error || r2.error })
-        }).catch(function (e) { setS({ loading: false, items: [], error: String(e) }) })
+        }).catch(function (e) { setS({ loading: false, items: [], mm: 0, regions: 0, entryRegion: 0, error: String(e) }) })
       }, [])
       var items = s.items || []
       var withMm = items.filter(function (x) { return x.mm > 0 }).length
@@ -1180,15 +1244,18 @@ window.__ModuleLoader__.load({
     /* ══ 面板壳：侧栏导航 + 内容 ═════════════════════════════════════════ */
     function App(props) {
       var vs = React.useState('brain')
-      var view = vs[0], setView = vs[1]
-      var ts = React.useState({ loading: true })
-      var tree = ts[0], setTree = ts[1]
+      var view = vs[0] || 'brain'
+      var setView = vs[1]
+      var ts = React.useState({ loading: true, count: 0 })
+      var tree = ts[0] || { loading: true, count: 0 }
+      var setTree = ts[1]
       var loadTree = React.useCallback(function () {
-        opGet('wt_tree', { limit: 1 }).then(function (j) {
-          setTree(j && j.ok ? { loading: false, count: j.count || (j.entries || []).length } : { loading: false, error: (j && j.error) || '读取失败' })
-        }).catch(function (e) { setTree({ loading: false, error: String(e) }) })
+        opGet('stats', {}).then(function (j) {
+          setTree(j && j.ok ? { loading: false, count: j.entries || 0 } : { loading: false, count: 0, error: (j && j.error) || '读取失败' })
+        }).catch(function (e) { setTree({ loading: false, count: 0, error: String(e) }) })
       }, [])
       React.useEffect(function () { loadTree() }, [loadTree])
+      var back = props && (props.back || props.backToConversation)
       return h('div', { className: 'nao-app' },
         h('div', { className: 'nao-rail' },
           [['brain', '脑图', 'M12 3.6c2 0 3.6 1.6 3.6 3.6S14 10.8 12 10.8 8.4 9.2 8.4 7.2 10 3.6 12 3.6Zm0 9.6c3.3 0 6 1.6 6 3.6v3.6H6V16.8c0-2 2.7-3.6 6-3.6Z'],
@@ -1210,12 +1277,13 @@ window.__ModuleLoader__.load({
             h('span', { className: 'nao-spacer' }),
             h('span', { className: 'nao-count' }, tree.error ? '服务异常' : (tree.loading ? '载入中…' : (tree.count || 0) + ' 条')),
             h('button', { className: 'nao-mini', type: 'button', onClick: loadTree }, '刷新'),
-            typeof props.back === 'function' ? h('button', { className: 'nao-mini', type: 'button', onClick: function () { props.back() } }, '返回对话') : null),
+            typeof back === 'function' ? h('button', { className: 'nao-mini', type: 'button', onClick: function () { back() } }, '返回对话') : null),
           h('div', { className: 'nao-body' },
-            view === 'brain' ? h(AtlasView, { count: tree.count }) : null,
-            view === 'sleep' ? h(SleepView) : null,
-            view === 'pipe' ? h(PipePanel) : null,
-            view === 'settings' ? h(SettingsPanel) : null)))
+            h(PanelBoundary, null,
+              view === 'brain' ? h(AtlasView, { count: tree.count }) : null,
+              view === 'sleep' ? h(SleepView) : null,
+              view === 'pipe' ? h(PipePanel) : null,
+              view === 'settings' ? h(SettingsPanel) : null))))
     }
 
     var WikiApp = App          // 宿主注册名保持 WikiApp（slots 注入 + 桩测按函数名取）
