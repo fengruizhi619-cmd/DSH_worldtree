@@ -1,5 +1,5 @@
 /**
- * dsh-worldtree —— 实现（世界树系统 · 记忆系统 v2）
+ * dsh-naotu —— 实现（脑图 · 原世界树系统）
  *
  * 职责（2026-10-10 定纲）：世界树系统就是记忆。组织方式与记忆系统同构，
  * 两处换发动机：人工挂载 → 自动生长；贡献者 + 修订记录 → 生长记录。
@@ -18,23 +18,50 @@ import { dirname, join } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-export const PLUGIN_VERSION = '0.10.3'
-export const TOOL_NAME = '_dsh_external_worldtree'
+export const PLUGIN_VERSION = '1.0.0'
+export const TOOL_NAME = '_dsh_external_dsh_naotu'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/Feng'
 export const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh')
 
+// ── 改名迁移（2026-11-04 脑图）：~/.dsh/worldtree → ~/.dsh/naotu，幂等一次性 ──
+// 搬 config.json / inject 池 / p3_pending / dream_cache / embed.json / p3_bili。
+// 永不删数据：rename 失败（目标已存在等）逐项搬，搬不动的留在原目录由人工处置。
+import { readdirSync, cpSync } from 'node:fs'
+function _migrateNaotuDir() {
+  try {
+    const oldDir = join(DSH_HOME, 'worldtree')
+    const newDir = join(DSH_HOME, 'naotu')
+    if (!existsSync(oldDir)) return
+    if (!existsSync(newDir)) {
+      renameSync(oldDir, newDir)
+      console.warn('[dsh-naotu] 配置目录已迁移 ~/.dsh/worldtree → ~/.dsh/naotu')
+      return
+    }
+    for (const name of readdirSync(oldDir)) {
+      const from = join(oldDir, name)
+      const to = join(newDir, name)
+      if (existsSync(to)) continue
+      try { renameSync(from, to) } catch { try { cpSync(from, to, { recursive: true }) } catch { /* 留原处 */ } }
+    }
+    console.warn('[dsh-naotu] 配置目录合并完成（残留旧目录 ~/.dsh/worldtree 由人工确认后可删）')
+  } catch (e) {
+    console.warn('[dsh-naotu] 配置目录迁移失败（继续用新路径，旧数据在 ~/.dsh/worldtree）: ' + (e && e.message))
+  }
+}
+_migrateNaotuDir()
+
 const DEFAULTS = {
   /** 树核 Python */
   pyExe: 'E:/python/python.exe',
-  corePy: 'E:/DSH_data/世界树/core/worldtree.py',
+  corePy: 'E:/DSH_data/世界树/core/naotu.py',
   /** 树库 */
   dbPath: 'E:/DSH_data/世界树/data/worldtree.db',
   /** 编码服务（内置 dsh-liubian-memory 提供） */
   embedUrl: 'http://127.0.0.1:8082',
   /** wiki_store 副本（流变wiki UI 后端，ro 直连 liubian.db） */
-  helperPy: 'E:/DSH_data/世界树/plugin/dsh-worldtree/helper/wiki_store.py',
-  helperCwd: 'E:/DSH_data/世界树/plugin/dsh-worldtree/helper',
+  helperPy: 'E:/DSH_data/世界树/plugin/dsh-naotu/helper/wiki_store.py',
+  helperCwd: 'E:/DSH_data/世界树/plugin/dsh-naotu/helper',
   /** 记忆库（helper ro 直连） */
   luDb: 'E:/DSH_data/.memory_registry/liubian.db',
   /** 每轮记忆注入（v1：树定位取材） */
@@ -87,7 +114,7 @@ const DEFAULTS = {
 
 /* ── 配置（检查表 §3.2.3：不指望宿主注入默认值；读文件剥 BOM §3.4.1）── */
 export function configFile() {
-  return join(DSH_HOME, 'worldtree', 'config.json')
+  return join(DSH_HOME, 'naotu', 'config.json')
 }
 
 function readJson(file) {
@@ -243,7 +270,7 @@ function wikiMountPanelRoutes(ctx, cfg) {
         : ctx.webServer
       if (!webServer || typeof webServer.register !== 'function') {
         if (attempts < 8) timer = setTimeout(tryMount, 2000)
-        else log?.warn?.(`[dsh-worldtree] webServer 重试 ${attempts} 次仍不可得，${ROUTE_PATH} 放弃挂载（重启/重载后恢复）`)
+        else log?.warn?.(`[dsh-naotu] webServer 重试 ${attempts} 次仍不可得，${ROUTE_PATH} 放弃挂载（重启/重载后恢复）`)
         return
       }
       if (typeof prevOff === 'function') {
@@ -270,8 +297,8 @@ function wikiMountPanelRoutes(ctx, cfg) {
               }
               if (op === 'health') {
                 wikiSendJson(res, 200, {
-                  ok: true, plugin: 'dsh-worldtree', version: PLUGIN_VERSION, contract: CONTRACT_VERSION,
-                  service: { name: 'worldtree-wiki-store', state: 'ok', version: PLUGIN_VERSION, hasFind: true, error: null },
+                  ok: true, plugin: 'dsh-naotu', version: PLUGIN_VERSION, contract: CONTRACT_VERSION,
+                  service: { name: 'naotu-wiki-store', state: 'ok', version: PLUGIN_VERSION, hasFind: true, error: null },
                 })
                 return
               }
@@ -403,14 +430,14 @@ function wikiMountPanelRoutes(ctx, cfg) {
                 const next = { ...cur, ...patch }
                 mkdirSync(dirname(configFile()), { recursive: true })
                 writeFileSync(configFile(), JSON.stringify(next, null, 2) + '\n', 'utf8')
-                ctx.logger?.info?.('[dsh-worldtree] 设置已保存：' + Object.keys(patch).join(','))
+                ctx.logger?.info?.('[dsh-naotu] 设置已保存：' + Object.keys(patch).join(','))
                 wikiSendJson(res, 200, { ok: true, saved: Object.keys(patch) })
                 return
               }
               if (op === 'insert') {
                 const text = String(params.text || '').trim()
                 if (!text) { wikiSendJson(res, 400, { ok: false, error: 'op=insert 需要 text' }); return }
-                const r = await callCore(cfg, { op: 'insert',
+                const r = await callCore(cfg, { op: 'insert', embedUrl: cfg.embedUrl,
                   source: String(params.source || '').trim() || ('upload/' + new Date().toISOString().slice(0, 19)),
                   ws: String(params.ws || 'upload'), text })
                 wikiSendJson(res, r.ok ? 200 : 503, r.ok ? r.data : { ok: false, error: r.error })
@@ -447,7 +474,7 @@ function wikiMountPanelRoutes(ctx, cfg) {
                 // v2 做梦（v0.9.1 加缓存）：树核全流程约 23s，结果缓存 worldtree/dream_cache.json；
                 // 失效判据 = entry_vecs 行数变化（条目数不变 → 簇划分稳定：树核随机种子固定可复现）
                 const force = String(params.force || '') === '1'
-                const dreamCacheFile = () => join(DSH_HOME, 'worldtree', 'dream_cache.json')
+                const dreamCacheFile = () => join(DSH_HOME, 'naotu', 'dream_cache.json')
                 // 缓存键 = vec_count 行数（统一口径：dream.total 与 vec_count 实测差 1——join 与直计数口径不同，若各用各的缓存永不命中）
                 const cnt = await callCore(cfg, { op: 'vec_count' })
                 const vecN = cnt.ok ? Number(cnt.data && cnt.data.count) : null
@@ -465,7 +492,7 @@ function wikiMountPanelRoutes(ctx, cfg) {
                   try {
                     mkdirSync(dirname(dreamCacheFile()), { recursive: true })
                     writeFileSync(dreamCacheFile(), JSON.stringify({ at: new Date().toISOString(), n: vecN != null ? vecN : ((r.data && r.data.total) || 0), payload: r.data }), 'utf8')
-                  } catch (e) { ctx.logger?.warn?.(`[dsh-worldtree] dream 缓存写入失败（不影响本次结果）: ${e && e.message}`) }
+                  } catch (e) { ctx.logger?.warn?.(`[dsh-naotu] dream 缓存写入失败（不影响本次结果）: ${e && e.message}`) }
                 }
                 wikiSendJson(res, r.ok ? 200 : 503, r.ok ? r.data : { ok: false, error: r.error })
                 return
@@ -516,15 +543,15 @@ function wikiMountPanelRoutes(ctx, cfg) {
       } catch (err) {
         const msg = (err && err.message) || String(err)
         if (attempts < 8) {
-          log?.warn?.(`[dsh-worldtree] ${ROUTE_PATH} 挂载失败（第 ${attempts} 次）：${msg}——2s 后重试`)
+          log?.warn?.(`[dsh-naotu] ${ROUTE_PATH} 挂载失败（第 ${attempts} 次）：${msg}——2s 后重试`)
           timer = setTimeout(tryMount, 2000)
         } else {
-          log?.warn?.(`[dsh-worldtree] ${ROUTE_PATH} 挂载失败 ${attempts} 次，放弃挂载：${msg}`)
+          log?.warn?.(`[dsh-naotu] ${ROUTE_PATH} 挂载失败 ${attempts} 次，放弃挂载：${msg}`)
         }
         return
       }
       prevOff = off
-      log?.info?.(`[dsh-worldtree] 流变wiki 面板路由已挂载 ${ROUTE_PATH}（op=${WIKI_OPS.join('/')}｜后端=本地 wiki_store 副本）`)
+      log?.info?.(`[dsh-naotu] 流变wiki 面板路由已挂载 ${ROUTE_PATH}（op=${WIKI_OPS.join('/')}｜后端=本地 wiki_store 副本）`)
     }
     tryMount()
     return () => {
@@ -534,7 +561,7 @@ function wikiMountPanelRoutes(ctx, cfg) {
         try { prevOff() } catch { /* 已释放 */ }
       }
     }
-  }, 'dsh-worldtree: wiki-panel-routes')
+  }, 'dsh-naotu: wiki-panel-routes')
 }
 
 const OUT = {
@@ -547,7 +574,7 @@ const OUT = {
 function registerWorldtreeTool(ctx, cfg) {
   ctx.effect(() => ctx.tools.register(defineTool({
     name: TOOL_NAME,
-    description: '世界树系统（记忆系统 v2）—— 向量主题树：每篇日记/便签按句采 5 样编码，'
+    description: '脑图（原脑图 · 原世界树系统）—— 向量主题树：每篇日记/便签按句采 5 样编码，'
       + '按「第 k 层需 ≥k 个向量命中」自动长成主题树；每篇有唯一主题地址与生长记录。'
       + '数据：日记 10,337 + wiki 全量（slug 保留）。'
       + 'action: status 总览｜search 关键词搜成员｜locate 给文本定位主题地址｜'
@@ -577,7 +604,7 @@ function registerWorldtreeTool(ctx, cfg) {
         if (!r.ok) return '[错误] ' + r.error
         const st = r.data
         return [
-          `[世界树] ${cfg.dbPath}`,
+          `[脑图] ${cfg.dbPath}`,
           `成员 ${st.entries}（日记 + wiki，slug 保留）｜节点 ${st.nodes}｜树深 ${st.max_depth}`,
           `各层节点 ${JSON.stringify(st.by_level)}`,
           `各层纯度 ${JSON.stringify(st.purity_by_level)}（枝内主导工作区占比）`,
@@ -618,7 +645,7 @@ function registerWorldtreeTool(ctx, cfg) {
         if (!e.ok) return '[错误] 编码失败：' + e.error
         const fam = e.vectors[0]
         const e2 = await embed(cfg, [q])   // 5 采样在树核内做（树核持有切分规则）
-        const r = await callCore(cfg, { op: 'insert', source, text: q, fam: fam })
+        const r = await callCore(cfg, { op: 'insert', embedUrl: cfg.embedUrl, source, text: q, fam: fam })
         if (!r.ok) return '[错误] ' + r.error
         const path = r.data.path || []
         return `[OK] 已上树（${source}）\n` + path.map((p) => `  L${p[0]} → 节点 ${p[1]}`).join('\n')
@@ -674,7 +701,7 @@ const EMBED_DEFAULTS = {
 }
 
 function embedConfigFile() {
-  return join(EMBED_DSH_HOME, 'worldtree', 'embed.json')
+  return join(EMBED_DSH_HOME, 'naotu', 'embed.json')
 }
 
 function embedResolveConfig() {
@@ -774,7 +801,7 @@ async function embedTakeoverIfOldModel(cfg) {
     const text = await res.text()
     if (/Q8_0/i.test(text)) {
       const r = embedStopService(cfg)
-      embedLogger?.warn?.(`[dsh-worldtree] 8082 在线但仍是旧 Q8_0 模型 → 已接管停旧（pid=${r.pid}），改起 Q4_K_M`)
+      embedLogger?.warn?.(`[dsh-naotu] 8082 在线但仍是旧 Q8_0 模型 → 已接管停旧（pid=${r.pid}），改起 Q4_K_M`)
       await embedSleep(1500)
       return true
     }
@@ -814,11 +841,11 @@ function embedEnsureInFlow(cfg, logger, { force = false } = {}) {
   void (async () => {
     const up = await embedEnsureReady(cfg)
     if (up.ok) {
-      embedLogger?.info?.(`[dsh-worldtree] 内置向量服务在线（Q4_K_M @ ${cfg.embedPort}${up.already ? '，已在位' : `，就绪 ${up.seconds}s`}）`)
+      embedLogger?.info?.(`[dsh-naotu] 内置向量服务在线（Q4_K_M @ ${cfg.embedPort}${up.already ? '，已在位' : `，就绪 ${up.seconds}s`}）`)
     } else if (up.pending) {
-      embedLogger?.warn?.(`[dsh-worldtree] 内置向量服务已拉起但 ${up.seconds}s 未就绪（首次加载可能更久）`)
+      embedLogger?.warn?.(`[dsh-naotu] 内置向量服务已拉起但 ${up.seconds}s 未就绪（首次加载可能更久）`)
     } else {
-      embedLogger?.warn?.(`[dsh-worldtree] 内置向量服务拉起失败：${up.error || ''}`)
+      embedLogger?.warn?.(`[dsh-naotu] 内置向量服务拉起失败：${up.error || ''}`)
     }
   })().catch(() => {})
 }
@@ -838,13 +865,13 @@ async function embedWatchdogTick(cfg) {
     const limit = Math.max(512, Number(cfg.watchdogLimitMb) || 4096)
     if (mb <= limit) return
     embedLogger?.warn?.(
-      `[dsh-worldtree] 向量服务看门狗：llama-server(PID ${pid}) 私有提交 ${mb.toFixed(0)}MB 超过 ${limit}MB，自动重启`)
+      `[dsh-naotu] 向量服务看门狗：llama-server(PID ${pid}) 私有提交 ${mb.toFixed(0)}MB 超过 ${limit}MB，自动重启`)
     embedStopService(cfg)
     await embedSleep(1500)
     const launched = embedLaunch(cfg)
     embedLastWatchdog = `${new Date().toLocaleString('zh-CN')}｜${mb.toFixed(0)}MB → 重启（launch=${launched}）`
   } catch (err) {
-    embedLogger?.warn?.(`[dsh-worldtree] 向量服务看门狗异常：${(err && err.message) || err}`)
+    embedLogger?.warn?.(`[dsh-naotu] 向量服务看门狗异常：${(err && err.message) || err}`)
   }
 }
 
@@ -947,7 +974,7 @@ function embedRegisterTool(ctx, cfg) {
  *  · 时机②（独立触发点，不许与①混）：本轮检索命中 ∩ 预备池 ∩ 本周期没注过 → ≤missTop 条立刻补
  *  · 差一拍：注入面只有 pre-step——压缩后的注入发生在下一拍（登记在案，非 bug）
  * 存储：worldtree/inject/<会话8位>.json 原子写；坏件隔离不静默重置。 */
-function poolDir() { return join(DSH_HOME, 'worldtree', 'inject') }
+function poolDir() { return join(DSH_HOME, 'naotu', 'inject') }
 function poolFile(key) { return join(poolDir(), key + '.json') }
 function poolLoad(key) {
   try {
@@ -1056,7 +1083,7 @@ function injectMount(ctx, cfg) {
             table = rcT.data.ranked || []
             tagOnly = true
             vectorUp = false
-            ctx.logger?.warn?.(`[dsh-worldtree] 注入池：向量服务不可用，降级纯 tag 检索（${table.length} 条；本轮不入池不加热，仅命中补漏判定）`)
+            ctx.logger?.warn?.(`[dsh-naotu] 注入池：向量服务不可用，降级纯 tag 检索（${table.length} 条；本轮不入池不加热，仅命中补漏判定）`)
           }
         }
       }
@@ -1122,7 +1149,7 @@ function injectMount(ctx, cfg) {
         // 留预备池下周期再赛——不丢记忆、不退出赛马，只是不当轮注入。
         const toInject0 = survivors.filter((it) => !entryInContext(it, ctxText))
         if (!toInject0.length) {
-          ctx.logger?.info?.(`[dsh-worldtree] 注入池周期补位：幸存者均已在上下文，跳过注入`)
+          ctx.logger?.info?.(`[dsh-naotu] 注入池周期补位：幸存者均已在上下文，跳过注入`)
           return decision
         }
         const gI = Number(cfg.injectRefillGuardItems) || 0
@@ -1146,7 +1173,7 @@ function injectMount(ctx, cfg) {
           const skipped = toInject0.length - rows.length
           if (skipped > 0) {
             pool.stats.refillGuarded = (pool.stats.refillGuarded || 0) + skipped
-            ctx.logger?.warn?.(`[dsh-worldtree] 注入池周期补位护栏：待注幸存者 ${toInject0.length} 条，护栏内注入 ${rows.length} 条（条数 ${gI || '∞'}/字数 ${gC || '∞'}，已用 ${charUsed} 字），余 ${skipped} 条留预备池下周期再赛`)
+            ctx.logger?.warn?.(`[dsh-naotu] 注入池周期补位护栏：待注幸存者 ${toInject0.length} 条，护栏内注入 ${rows.length} 条（条数 ${gI || '∞'}/字数 ${gC || '∞'}，已用 ${charUsed} 字），余 ${skipped} 条留预备池下周期再赛`)
           }
         }
         if (rows.length) {
@@ -1155,8 +1182,8 @@ function injectMount(ctx, cfg) {
           const text = '<worldtree from="注入池" why="' + why + '" hits="' + rows.length + '">\n' + rows.join('\n\n')
             + `\n\n【注入池】以上是本轮上下文压缩后补回的记忆（在池内经两级赛马留存下来），直接当作既有知识使用，不必再检索。</worldtree>`
           const recall = { id: randomUUID(), role: 'user', content: [{ type: 'text', text }],
-                           source: { kind: 'plugin:dsh-worldtree', form: 'pool-refill' } }
-          ctx.logger?.info?.(`[dsh-worldtree] 注入池周期补位：${rows.length} 条（${why}）`)
+                           source: { kind: 'plugin:dsh-naotu', form: 'pool-refill' } }
+          ctx.logger?.info?.(`[dsh-naotu] 注入池周期补位：${rows.length} 条（${why}）`)
           return { kind: 'enter', messages: [...(decision.messages || []), recall] }
         }
       }
@@ -1188,14 +1215,14 @@ function injectMount(ctx, cfg) {
             const text = '<worldtree from="注入池" why="命中补漏" hits="' + rows.length + '">\n' + rows.join('\n\n')
               + '\n\n【注入池】以上是预备池中经两级赛马留存、本轮检索又命中且上下文没有的记忆，直接当作既有知识使用。</worldtree>'
             const recall = { id: randomUUID(), role: 'user', content: [{ type: 'text', text }],
-                             source: { kind: 'plugin:dsh-worldtree', form: 'pool-hit' } }
-            ctx.logger?.info?.(`[dsh-worldtree] 注入池命中补漏：${rows.length} 条`)
+                             source: { kind: 'plugin:dsh-naotu', form: 'pool-hit' } }
+            ctx.logger?.info?.(`[dsh-naotu] 注入池命中补漏：${rows.length} 条`)
             return { kind: 'enter', messages: [...(decision.messages || []), recall] }
           }
         }
       }
     } catch (err) {
-      ctx.logger?.warn?.(`[dsh-worldtree] 注入池管线异常（不拖垮主流程）：${(err && err.message) || err}`)
+      ctx.logger?.warn?.(`[dsh-naotu] 注入池管线异常（不拖垮主流程）：${(err && err.message) || err}`)
     }
     return decision
   }, { prepend: true })
@@ -1233,7 +1260,7 @@ function p3WatchdogTick() {
   p3Busy = false
   p3BusySince = 0
   const job = p3Queue[0]
-  p3WatchdogCtx?.logger?.warn?.(`[dsh-worldtree] P3 看门狗：busy 挂起 ${stuckMin.toFixed(0)} 分钟，强制解锁` +
+  p3WatchdogCtx?.logger?.warn?.(`[dsh-naotu] P3 看门狗：busy 挂起 ${stuckMin.toFixed(0)} 分钟，强制解锁` +
     (job ? `（作业 ${job.sid} 重排队）` : ''))
   if (p3WatchdogCtx && job) p3Drain(p3WatchdogCtx, p3WatchdogCfg)
 }
@@ -1251,7 +1278,7 @@ function p3Note(sid, range, segs, chars, status) {
  * 锚点②：逐条 insert 前 exists 查重——已上树的条目不重复插（恢复天然幂等）
  * 批次计数器同步落盘：防重启后同会话新压缩与旧批次撞号（撞号会被 exists 误去重） */
 function p3File() {
-  return join(DSH_HOME, 'worldtree', 'p3_pending.json')
+  return join(DSH_HOME, 'naotu', 'p3_pending.json')
 }
 function p3Load() {
   try {
@@ -1265,7 +1292,7 @@ function p3Load() {
 }
 function p3Save() {
   try {
-    const dir = join(DSH_HOME, 'worldtree')
+    const dir = join(DSH_HOME, 'naotu')
     mkdirSync(dir, { recursive: true })   // 2026-10-12 血案修复：目录不存在曾静默放弃持久化，
                                           // 断点续传从未落过盘——必须主动建目录
     const payload = { batch: p3Batch, savedAt: Date.now(),
@@ -1360,7 +1387,7 @@ let p3LastSid = ''          // 从 session/event 持续刷新（bili 轮询需�
 let p3BiliState = null
 let p3BiliTickBusy = false
 
-function p3BiliFile() { return join(DSH_HOME, 'worldtree', 'p3_bili.json') }
+function p3BiliFile() { return join(DSH_HOME, 'naotu', 'p3_bili.json') }
 
 function p3BiliLoad() {
   if (p3BiliState) return p3BiliState
@@ -1408,7 +1435,7 @@ async function p3BiliTick(ctx, cfg, kickDrain = true) {
     const data = (r && r.data) || {}
     if (!data.ok) {
       if (!data.missing)  // 库缺席 = billion-context 没启用，静默；其他错留痕下轮再试
-        ctx.logger?.warn?.('[dsh-worldtree] P3·bili：扫描失败（下轮再试）：' + (data.error || (r && r.error) || '未知'))
+        ctx.logger?.warn?.('[dsh-naotu] P3·bili：扫描失败（下轮再试）：' + (data.error || (r && r.error) || '未知'))
       return
     }
     const blocks = data.blocks || []
@@ -1434,7 +1461,7 @@ async function p3BiliTick(ctx, cfg, kickDrain = true) {
         p3Jobs.push(job)
         p3Queue.push(job)
         p3Note(p3LastSid, job.range, 1, sum.length, '块摘要直采')
-        ctx.logger?.info?.(`[dsh-worldtree] P3·bili：${p3LastSid} 块 ${b.block_id}（ref ${b.start_ref}–${b.end_ref}）摘要 ${sum.length} 字直采入队`)
+        ctx.logger?.info?.(`[dsh-naotu] P3·bili：${p3LastSid} 块 ${b.block_id}（ref ${b.start_ref}–${b.end_ref}）摘要 ${sum.length} 字直采入队`)
         enqueued++
       }
       // ② 区间正文提炼（与 DSH 压缩通道同管线）
@@ -1442,7 +1469,7 @@ async function p3BiliTick(ctx, cfg, kickDrain = true) {
                                         session_id: b.session_id, from_ref: b.start_ref, to_ref: b.end_ref })
       const rdata = (ru && ru.data) || {}
       if (!rdata.ok) {
-        ctx.logger?.warn?.(`[dsh-worldtree] P3·bili：块 ${b.block_id} 取材失败（跳过正文提炼，DSH 通道兜底）：` + (rdata.error || '未知'))
+        ctx.logger?.warn?.(`[dsh-naotu] P3·bili：块 ${b.block_id} 取材失败（跳过正文提炼，DSH 通道兜底）：` + (rdata.error || '未知'))
         done[key] = 1
         p3BiliSave()
         continue
@@ -1466,7 +1493,7 @@ async function p3BiliTick(ctx, cfg, kickDrain = true) {
           total += cand[i].seg.length
         }
         if (droppedOld > 0)
-          ctx.logger?.warn?.(`[dsh-worldtree] P3·bili：${p3LastSid} 块 ${b.block_id} 超 ${hot.total} 字上限（保新弃旧），${cand.length} 段只入 ${keptObjs.length} 段`)
+          ctx.logger?.warn?.(`[dsh-naotu] P3·bili：${p3LastSid} 块 ${b.block_id} 超 ${hot.total} 字上限（保新弃旧），${cand.length} 段只入 ${keptObjs.length} 段`)
         if (total >= hot.minChars) {
           for (const k of keptObjs) fps[k.fp] = 1     // 指纹只对入队 seg 记（防内容丢失）
           const job = { sid: p3LastSid, texts: keptObjs.map((k) => k.seg), queuedAt: Date.now(),
@@ -1476,10 +1503,10 @@ async function p3BiliTick(ctx, cfg, kickDrain = true) {
           p3Jobs.push(job)
           p3Queue.push(job)
           p3Note(p3LastSid, 'bili:' + b.block_id, keptObjs.length, total, '已捕获(bili)')
-          ctx.logger?.info?.(`[dsh-worldtree] P3·bili：${p3LastSid} 块 ${b.block_id} 捕获 ${keptObjs.length} 段 ${total} 字`)
+          ctx.logger?.info?.(`[dsh-naotu] P3·bili：${p3LastSid} 块 ${b.block_id} 捕获 ${keptObjs.length} 段 ${total} 字`)
           enqueued++
         } else {
-          ctx.logger?.info?.(`[dsh-worldtree] P3·bili：${p3LastSid} 块 ${b.block_id} 人话 ${total} 字 < ${hot.minChars}，跳过提炼（正常）`)
+          ctx.logger?.info?.(`[dsh-naotu] P3·bili：${p3LastSid} 块 ${b.block_id} 人话 ${total} 字 < ${hot.minChars}，跳过提炼（正常）`)
         }
       }
       done[key] = 1
@@ -1490,7 +1517,7 @@ async function p3BiliTick(ctx, cfg, kickDrain = true) {
     p3BiliSave()
     if (enqueued && kickDrain) p3Drain(ctx, cfg)
   } catch (err) {
-    ctx.logger?.warn?.('[dsh-worldtree] P3·bili 轮询异常（忽略）：' + ((err && err.message) || err))
+    ctx.logger?.warn?.('[dsh-naotu] P3·bili 轮询异常（忽略）：' + ((err && err.message) || err))
   } finally {
     p3BiliTickBusy = false
   }
@@ -1502,7 +1529,7 @@ function p3Mount(ctx, cfg) {
   p3Jobs = p3Load()
   if (p3Jobs.length) {
     const toDistill = p3Jobs.filter((j) => !j.distilled).length
-    ctx.logger?.info?.(`[dsh-worldtree] P3 续传：载入 ${p3Jobs.length} 个未完成任务（待提炼 ${toDistill} / 待上树 ${p3Jobs.length - toDistill}）`)
+    ctx.logger?.info?.(`[dsh-naotu] P3 续传：载入 ${p3Jobs.length} 个未完成任务（待提炼 ${toDistill} / 待上树 ${p3Jobs.length - toDistill}）`)
     for (const j of p3Jobs) p3Queue.push(j)
     p3Drain(ctx, cfg)
   }
@@ -1517,7 +1544,7 @@ function p3Mount(ctx, cfg) {
       if (++n % 3 === 0) void p3BiliTick(ctx, cfg)
     }, 60000)
     return () => clearInterval(t)
-  }, 'dsh-worldtree: p3-busy-watchdog')
+  }, 'dsh-naotu: p3-busy-watchdog')
   ctx.on('session/event', (session, event) => {
     try {
       const sid = p3SessionKey(session)
@@ -1530,7 +1557,7 @@ function p3Mount(ctx, cfg) {
           const pool = poolLoad(sid)
           pool.cycle.boundaryPending = true
           poolSaveSync(pool)
-          ctx.logger?.info?.(`[dsh-worldtree] 注入池：${sid} 收到压缩结束 → 周期边界置位（下一拍补位）`)
+          ctx.logger?.info?.(`[dsh-naotu] 注入池：${sid} 收到压缩结束 → 周期边界置位（下一拍补位）`)
         }
         return
       }
@@ -1539,7 +1566,7 @@ function p3Mount(ctx, cfg) {
       const d = event.data || {}
       const range = d.shadowedRange
       if (!range || typeof range.start !== 'number' || typeof range.end !== 'number') {
-        ctx.logger?.warn?.(`[dsh-worldtree] P3：${sid} summary 缺 shadowedRange，跳过`)
+        ctx.logger?.warn?.(`[dsh-naotu] P3：${sid} summary 缺 shadowedRange，跳过`)
         return
       }
       const hot = p3HotNums()
@@ -1549,11 +1576,11 @@ function p3Mount(ctx, cfg) {
         const evs = session.snapshotEvents(range.start, range.end + 1)
         segs = p3ExtractHuman(evs)
       } catch (err) {
-        ctx.logger?.warn?.(`[dsh-worldtree] P3：${sid} 读取被压缩区间 seq ${range.start}–${range.end} 失败（跳过本批）：` + ((err && err.message) || err))
+        ctx.logger?.warn?.(`[dsh-naotu] P3：${sid} 读取被压缩区间 seq ${range.start}–${range.end} 失败（跳过本批）：` + ((err && err.message) || err))
         return
       }
       if (!segs.length) {
-        ctx.logger?.info?.(`[dsh-worldtree] P3：${sid} 压缩区间 seq ${range.start}–${range.end} 无人话内容，跳过`)
+        ctx.logger?.info?.(`[dsh-naotu] P3：${sid} 压缩区间 seq ${range.start}–${range.end} 无人话内容，跳过`)
         p3Note(sid, range.start + '–' + range.end, 0, 0, '无人话跳过')
         return
       }
@@ -1563,7 +1590,7 @@ function p3Mount(ctx, cfg) {
       const biliFps = biliSt.fps[sid] || (biliSt.fps[sid] = {})
       const fresh = segs.filter((s) => !biliFps[p3Fp(s)])
       if (fresh.length < segs.length)
-        ctx.logger?.info?.(`[dsh-worldtree] P3：${sid} 区间 ${segs.length - fresh.length} 段已被 bili 通道提炼（指纹命中）`)
+        ctx.logger?.info?.(`[dsh-naotu] P3：${sid} 区间 ${segs.length - fresh.length} 段已被 bili 通道提炼（指纹命中）`)
       segs = fresh
       if (!segs.length) {
         p3Note(sid, range.start + '–' + range.end, 0, 0, 'bili已提炼')
@@ -1580,11 +1607,11 @@ function p3Mount(ctx, cfg) {
         total += s.length
       }
       if (droppedOld > 0) {
-        ctx.logger?.warn?.(`[dsh-worldtree] P3：${sid} 超出 ${hot.total} 字上限（保新弃旧），${segs.length} 段只入提炼 ${kept.length} 段（截掉较旧 ${droppedOld} 段）`)
+        ctx.logger?.warn?.(`[dsh-naotu] P3：${sid} 超出 ${hot.total} 字上限（保新弃旧），${segs.length} 段只入提炼 ${kept.length} 段（截掉较旧 ${droppedOld} 段）`)
       }
-      ctx.logger?.info?.(`[dsh-worldtree] P3：${sid} 捕获压缩区间 seq ${range.start}–${range.end}：${kept.length} 段 ${total} 字`)
+      ctx.logger?.info?.(`[dsh-naotu] P3：${sid} 捕获压缩区间 seq ${range.start}–${range.end}：${kept.length} 段 ${total} 字`)
       if (total < hot.minChars) {
-        ctx.logger?.info?.(`[dsh-worldtree] P3：${sid} 区间人话 ${total} 字 < 最小 ${hot.minChars} 字，跳过提炼（正常，非失败）`)
+        ctx.logger?.info?.(`[dsh-naotu] P3：${sid} 区间人话 ${total} 字 < 最小 ${hot.minChars} 字，跳过提炼（正常，非失败）`)
         p3Note(sid, range.start + '–' + range.end, kept.length, total, '字数不足跳过')
         return
       }
@@ -1600,7 +1627,7 @@ function p3Mount(ctx, cfg) {
       p3Save()                                    // 入队即落盘（断点续传锚点⓪）
       p3Drain(ctx, cfg)
     } catch (err) {
-      ctx.logger?.warn?.('[dsh-worldtree] P3 采集异常（忽略）：' + ((err && err.message) || err))
+      ctx.logger?.warn?.('[dsh-naotu] P3 采集异常（忽略）：' + ((err && err.message) || err))
     }
   })
 }
@@ -1661,7 +1688,7 @@ function p3Drain(ctx, cfg) {
         job.phase = 'distill'
         job.slicesTotal = slices.length
         job.slicesDone = 0
-        ctx.logger?.info?.(`[dsh-worldtree] P3：${job.sid} 开始提炼（${slices.length} 片，输出上限 ${hot.maxTokens} tok）`)
+        ctx.logger?.info?.(`[dsh-naotu] P3：${job.sid} 开始提炼（${slices.length} 片，输出上限 ${hot.maxTokens} tok）`)
         const callLLM = async (sl) => {
           const res = await fetch(llm.url, {
             method: 'POST',
@@ -1696,19 +1723,19 @@ function p3Drain(ctx, cfg) {
             const t = new Promise((r) => setTimeout(() => r({ part: [], fin: 'hard-timeout' }), 240000))
             const { part, fin } = await Promise.race([work, t])
             if (fin === 'length' && part.length === 0 && depth < 1 && sl.length > 1) {
-              ctx.logger?.warn?.(`[dsh-worldtree] P3：${job.sid} 片输出截断且零回收，对半降片重试（${sl.length} 段 → ${Math.ceil(sl.length / 2)}+${sl.length - Math.ceil(sl.length / 2)}）`)
+              ctx.logger?.warn?.(`[dsh-naotu] P3：${job.sid} 片输出截断且零回收，对半降片重试（${sl.length} 段 → ${Math.ceil(sl.length / 2)}+${sl.length - Math.ceil(sl.length / 2)}）`)
               const half = Math.ceil(sl.length / 2)
               const ra = await distillSlice(sl.slice(0, half), depth + 1)
               const rb = await distillSlice(sl.slice(half), depth + 1)
               return ra.concat(rb)
             }
             if (fin === 'length') {
-              ctx.logger?.warn?.(`[dsh-worldtree] P3：${job.sid} 片输出被 max_tokens 截断，容错回收 ${part.length} 条（残尾已弃）`)
+              ctx.logger?.warn?.(`[dsh-naotu] P3：${job.sid} 片输出被 max_tokens 截断，容错回收 ${part.length} 条（残尾已弃）`)
             }
             return part
           } catch (err) {
             // 单片失败只跳过该片——不杀整批（其余片的内容照常上树）
-            ctx.logger?.warn?.('[dsh-worldtree] P3：单片提炼失败（跳过该片，其余继续）：' + ((err && err.message) || err))
+            ctx.logger?.warn?.('[dsh-naotu] P3：单片提炼失败（跳过该片，其余继续）：' + ((err && err.message) || err))
             return []
           }
         }
@@ -1719,7 +1746,7 @@ function p3Drain(ctx, cfg) {
           job.slicesDone = (job.slicesDone || 0) + 1
         }
         if (!arr.length) {
-          ctx.logger?.info?.('[dsh-worldtree] P3：本批无可提炼条目')
+          ctx.logger?.info?.('[dsh-naotu] P3：本批无可提炼条目')
           p3Note(job.sid, job.range || '', job.segs || 0, job.chars || 0, '无可提炼条目')
           p3Remove(job)                       // 无价值 = 完成，出档
           return
@@ -1740,16 +1767,16 @@ function p3Drain(ctx, cfg) {
         // 断点续传锚点②：exists 查重——中断恢复后已上树的条目不重复插
         const ex = await callCore(cfg, { op: 'exists', source })
         if (ex && ex.ok && ex.data && ex.data.exists) { sources.push(source); job.insertDone = (job.insertDone || 0) + 1; continue }
-        const r = await callCore(cfg, { op: 'insert', source, ws: 'compaction', text: text.slice(0, 8000) })
+        const r = await callCore(cfg, { op: 'insert', embedUrl: cfg.embedUrl, source, ws: 'compaction', text: text.slice(0, 8000) })
         if (r.ok) sources.push(source)
         job.insertDone = (job.insertDone || 0) + 1
       }
       if (sources.length) {
         await callCore(cfg, { op: 'record_upload', session: job.sid, count: sources.length,
                               sources, note: '压缩批次 #' + job.batch + '（区间直读）' })
-        ctx.logger?.info?.(`[dsh-worldtree] P3 上行：${job.sid} 批次#${job.batch} 提炼 ${job.distilled.length} 条 → 上树 ${sources.length} 条`)
+        ctx.logger?.info?.(`[dsh-naotu] P3 上行：${job.sid} 批次#${job.batch} 提炼 ${job.distilled.length} 条 → 上树 ${sources.length} 条`)
       } else {
-        ctx.logger?.warn?.(`[dsh-worldtree] P3：${job.sid} 提炼出 ${job.distilled.length} 条但全部上树失败（查 callCore/树库）`)
+        ctx.logger?.warn?.(`[dsh-naotu] P3：${job.sid} 提炼出 ${job.distilled.length} 条但全部上树失败（查 callCore/树库）`)
       }
       p3Note(job.sid, job.range || '', job.segs || 0, job.chars || 0,
              '完成：提炼 ' + job.distilled.length + ' 条 → 上树 ' + sources.length + ' 条')
@@ -1757,7 +1784,7 @@ function p3Drain(ctx, cfg) {
     } catch (err) {
       // 断点续传语义（2026-10-11）：失败不丢任务——留在 p3_pending.json，
       // 下次 DSH 启动自动续传；本轮不再热重试（防 LLM 故障时打转）
-      ctx.logger?.warn?.('[dsh-worldtree] P3 失败（任务已缓存，下次 DSH 启动自动续传）：' + ((err && err.message) || err))
+      ctx.logger?.warn?.('[dsh-naotu] P3 失败（任务已缓存，下次 DSH 启动自动续传）：' + ((err && err.message) || err))
     } finally {
       p3Busy = false
       p3BusySince = 0
@@ -1772,7 +1799,7 @@ function p3Drain(ctx, cfg) {
 function ckptMount(ctx, cfg) {
   if (cfg.ckptEnabled === false) return
   if (!cfg.ckptPy || !existsSync(cfg.ckptPy)) {
-    ctx.logger?.warn?.(`[dsh-worldtree] 检查点脚本不存在：${cfg.ckptPy}（调度器未挂载）`)
+    ctx.logger?.warn?.(`[dsh-naotu] 检查点脚本不存在：${cfg.ckptPy}（调度器未挂载）`)
     return
   }
   let timer = null
@@ -1787,10 +1814,10 @@ function ckptMount(ctx, cfg) {
         if (child.stdin) child.stdin.end()    // §3.4.0 症状 B：显式关 stdin
       })
       const done = String(out.so).split('\n').filter((l) => l.includes('✓')).map((l) => l.trim())
-      if (done.length) ctx.logger?.info?.(`[dsh-worldtree] 检查点[${why}]：${done.join('｜')}`)
-      if (out.err && !done.length) ctx.logger?.warn?.('[dsh-worldtree] 检查点失败（下轮再试）：' + ((out.err && out.err.message) || out.err))
+      if (done.length) ctx.logger?.info?.(`[dsh-naotu] 检查点[${why}]：${done.join('｜')}`)
+      if (out.err && !done.length) ctx.logger?.warn?.('[dsh-naotu] 检查点失败（下轮再试）：' + ((out.err && out.err.message) || out.err))
     } catch (err) {
-      ctx.logger?.warn?.('[dsh-worldtree] 检查点异常（忽略）：' + ((err && err.message) || err))
+      ctx.logger?.warn?.('[dsh-naotu] 检查点异常（忽略）：' + ((err && err.message) || err))
     } finally {
       busy = false
     }
@@ -1798,16 +1825,16 @@ function ckptMount(ctx, cfg) {
   const interval = Number(cfg.ckptIntervalMs) || 600000
   const loop = async () => { await tick('定时'); timer = setTimeout(loop, interval) }
   timer = setTimeout(() => { void tick('启动补课'); timer = setTimeout(loop, interval) }, 30000)
-  ctx.effect(() => () => { if (timer) clearTimeout(timer) }, 'dsh-worldtree: 检查点调度器')
+  ctx.effect(() => () => { if (timer) clearTimeout(timer) }, 'dsh-naotu: 检查点调度器')
 }
 
 export function apply(ctx, input = {}) {
   const cfg = resolveConfig(input)
   if (!existsSync(cfg.corePy)) {
-    ctx.logger?.warn?.(`[dsh-worldtree] 树核不存在：${cfg.corePy}（工具将返回错误）`)
+    ctx.logger?.warn?.(`[dsh-naotu] 树核不存在：${cfg.corePy}（工具将返回错误）`)
   }
   if (!existsSync(cfg.dbPath)) {
-    ctx.logger?.warn?.(`[dsh-worldtree] 树库不存在：${cfg.dbPath}（先跑 core/migrate_p2.py 移植）`)
+    ctx.logger?.warn?.(`[dsh-naotu] 树库不存在：${cfg.dbPath}（先跑 core/migrate_p2.py 移植）`)
   }
   wikiMountPanelRoutes(ctx, cfg)
   // 内置向量化服务（2026-10-10 自 dsh-liubian-memory 迁入：Q4_K_M @ 8082）
@@ -1822,7 +1849,7 @@ export function apply(ctx, input = {}) {
 
   registerWorldtreeTool(ctx, cfg)
   ctx.logger?.info?.(
-    `[dsh-worldtree] v${PLUGIN_VERSION} 世界树插件已挂载：${cfg.dbPath}｜编码 ${cfg.embedUrl}（内置 Q4_K_M）｜检查点调度 ${cfg.ckptEnabled !== false ? '开' : '关'}｜P3 断点续传 开`,
+    `[dsh-naotu] v${PLUGIN_VERSION} 世界树插件已挂载：${cfg.dbPath}｜编码 ${cfg.embedUrl}（内置 Q4_K_M）｜检查点调度 ${cfg.ckptEnabled !== false ? '开' : '关'}｜P3 断点续传 开`,
   )
 }
 

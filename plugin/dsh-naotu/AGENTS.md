@@ -1,4 +1,6 @@
-# dsh-worldtree 开发纪律（2026-10-10 会话日志损坏与启动失败事故总结）
+# dsh-naotu（脑图）开发纪律（2026-10-10 会话日志损坏与启动失败事故总结）
+
+> 2026-11-04 由「世界树系统 / dsh-worldtree」改名为「脑图 / dsh-naotu」；下文历史事故原文中的旧名保留以保真。
 
 ## 事故一：package.json 的 dsh.client 声明（导致 DSH Desktop 启动失败）
 
@@ -24,7 +26,7 @@ node -e "const p=require('./package.json');if(p.dsh.client&&!p.exports['./client
 （`format v4 message requires a producer-owned source kind`），该会话从此打不开。
 已修（见 lib/impl.mjs 的 recall 构造，含事故留痕注释）。**任何写入会话的消息都必须带
 四要件：id / role / content 数组 / source.kind（producer-owned，如
-`plugin:dsh-worldtree`，禁止裸 `plugin` 或缺失）。**
+`plugin:dsh-naotu`，禁止裸 `plugin` 或缺失）。**
 
 ## 事故三：P3 上行 v1 全局缓冲被多会话冲垮（2026-10-11 排障定案）
 

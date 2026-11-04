@@ -1,10 +1,10 @@
 // 流变·记忆 面板（client）—— v0.10.0 三页 IA：
-//  - 星图（默认）：全局梦簇网图（点击下钻簇内成员）+ 常驻检索（结果可切 条目|网图）+ 经典树目录切换
-//  - 入库：P3 自动管线（压缩→提炼→入树）+ 手动上树 + 提交台账（做梦卡退休——做梦=星图本体）
+//  - 脑图（默认）：全局梦簇网图（点击下钻簇内成员）+ 常驻检索（结果可切 条目|网图）+ 经典树目录切换
+//  - 入库：P3 自动管线（压缩→提炼→入树）+ 手动入库 + 提交台账（做梦卡退休——做梦=脑图本体）
 //  - 设置：元数据驱动渲染（后端新增参数自动出现）
 //  - 数据：插件宿主路由 /api/liubian-wiki（纯读），树核写操作走 helper 子进程
 window.__ModuleLoader__.load({
-  id: 'dsh-worldtree',
+  id: 'dsh-naotu',
   factory: function (require) {
     var module = { exports: {} }
     var exports = module.exports
@@ -12,7 +12,7 @@ window.__ModuleLoader__.load({
     var h = React.createElement
 
     var PANEL_ID = 'liubianwiki'
-    var PANEL_LABEL = '世界树wiki'
+    var PANEL_LABEL = '脑图'
     var API = '/api/liubian-wiki'
     // 旧日记归档族的根 slug（记忆侧导入时定的）——树里它以 title「日记」出现。
     // 检索「范围」开关与"源枝去重"都靠它（见 runSearch / 日记源枝）。
@@ -764,7 +764,7 @@ window.__ModuleLoader__.load({
           tab.error ? h('div', { className: 'lbm-err' }, tab.error) : null))
     }
 
-    /* ── 上传视图：拖拽投放 + 粘贴 → 实时解析计数 → 逐条编码上树 ── */
+    /* ── 上传视图：拖拽投放 + 粘贴 → 实时解析计数 → 逐条编码入库 ── */
     function UploadPanel(props) {
       var txt = React.useState('')
       var text = txt[0], setText = txt[1]
@@ -832,7 +832,7 @@ window.__ModuleLoader__.load({
             '解析出 ' + ((parsed && parsed.length) || 0) + ' 条' + ((parsed && parsed.length > 30) ? '（逐条编码约 ' + Math.ceil(parsed.length * 1.2 / 60) + ' 分钟）' : ''))
       var logOk = (up.log || []).filter(function (x) { return x.ok }).length
       var upCard = h('div', { className: 'lbm-card' },
-          h('div', { className: 'lbm-cardTitle' }, '手动上树'),
+          h('div', { className: 'lbm-cardTitle' }, '手动入库'),
           h('div', { className: 'lbm-cardDesc' },
             '推荐 JSON 数组 [{source,text}]（实时解析计数）；Markdown / 纯文本按整篇一条。逐条编码生长，不再送审。'),
           h('div', {
@@ -856,7 +856,7 @@ window.__ModuleLoader__.load({
             onChange: function (e) { setText(e.target.value) } }),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 } },
             h('button', { className: 'lbm-btn lbm-btnPrimary', type: 'button', onClick: submit, disabled: up.busy },
-              up.busy ? '上树中…' : '编码上树'),
+              up.busy ? '入库中…' : '编码入库'),
             parseNote))
       var upLog = (up.log || []).length ? h('div', { className: 'lbm-upLog' },
           h('div', { style: { marginBottom: 6, paddingBottom: 5, borderBottom: '1px solid var(--dsw-alias-border-l2)', color: 'var(--dsw-alias-label-tertiary)', fontSize: '11px' } },
@@ -906,7 +906,7 @@ window.__ModuleLoader__.load({
             h('div', { className: 'lbm-barFill' + (iPct >= 100 ? ' is-done' : ''), style: { width: iPct + '%' } })),
           h('span', { className: 'lbm-pct' }, (j.insertTotal || 0) > 0 ? ('入树 ' + (j.insertDone || 0) + '/' + j.insertTotal + ' 条') : '入树 —')))
     }
-    /* ── 入库视图（v0.10.0）：自动管线 + 手动上树 + 提交台账（做梦卡退休——做梦=星图本体）── */
+    /* ── 入库视图（v0.10.0）：自动管线 + 手动入库 + 提交台账（做梦卡退休——做梦=脑图本体）── */
     function PipePanel() {
       var st = React.useState({ list: null, loading: false, error: null, total: 0 })
       var up = st[0], setUp = st[1]
@@ -994,7 +994,7 @@ window.__ModuleLoader__.load({
       }
       return h('div', { style: { padding: '16px 20px 40px', maxWidth: 860, margin: '0 auto' } },
         renderP3(),
-        h('div', { className: 'lbm-dSecTitle', style: { margin: '14px 0 8px' } }, '手动上树'),
+        h('div', { className: 'lbm-dSecTitle', style: { margin: '14px 0 8px' } }, '手动入库'),
         h(UploadPanel, { bare: true }),
         h('div', { className: 'lbm-dSecTitle', style: { margin: '14px 0 8px' } }, '提交台账'),
         renderLedger())
@@ -1004,7 +1004,7 @@ window.__ModuleLoader__.load({
     var SETTINGS_GROUPS = [
       { id: 'api', title: '提炼 API', desc: 'P3 压缩提炼用的外部大模型（OpenAI 兼容格式），保存后热生效' },
       { id: 'p3', title: '提炼参数', desc: '压缩触发后的分片与字数控制；超出总上限保新弃旧' },
-      { id: 'bili', title: 'bili 压缩通道', desc: 'billion-context 代理的上下文压缩块 → P3 提炼（双轨之二，主通道）；块摘要可零 LLM 直采上树' },
+      { id: 'bili', title: 'bili 压缩通道', desc: 'billion-context 代理的上下文压缩块 → P3 提炼（双轨之二，主通道）；块摘要可零 LLM 直采入库' },
       { id: 'inject', title: '注入参数', desc: '每轮检索注入的条数与正文长度' },
       { id: 'pool', title: '注入池 · 两级赛马', desc: '预热池 → 预备池；热度 = 三通道总分（语义 + 关键词 + 血缘基因）' },
       { id: 'ckpt', title: '检查点调度', desc: '五档稀释快照（1月/7天全量 + 24h/6h/1h 增量）的定期维护' },
@@ -1018,7 +1018,7 @@ window.__ModuleLoader__.load({
       p3MaxTokens:    { grp: 'p3', label: '输出上限（token/片）', ph: '16384' },
       p3TotalChars:   { grp: 'p3', label: '总字数上限', ph: '330000', hint: '超出截旧段（保新弃旧）' },
       p3BiliEnabled:      { grp: 'bili', label: 'bili 通道开关', bool: true },
-      p3BiliSummaryDirect:{ grp: 'bili', label: '块摘要直采', bool: true, hint: '压缩块摘要 ≥100 字零 LLM 直接上树' },
+      p3BiliSummaryDirect:{ grp: 'bili', label: '块摘要直采', bool: true, hint: '压缩块摘要 ≥100 字零 LLM 直接入库' },
       p3BiliDb:           { grp: 'bili', label: 'bili 库路径', ph: 'C:/Users/…/billion-context/sessions/index.db' },
       injectTop:      { grp: 'inject', label: '注入条数 / 轮', ph: '3' },
       injectBodyMax:  { grp: 'inject', label: '正文上限（字/条）', ph: '8000' },
@@ -1296,7 +1296,7 @@ window.__ModuleLoader__.load({
       var dPages = sdp[0], setDPages = sdp[1]
       var sdd = React.useState({ ws: '', id: '', data: null, loading: false, error: null, needWorkspace: false, candidates: null })
       var ddet = sdd[0], setDdet = sdd[1]
-      // 顶栏视图（v0.10.0 三页 IA）：星图（默认，梦簇网图+检索）/ 入库（管线+上传+台账）/ 设置
+      // 顶栏视图（v0.10.0 三页 IA）：脑图（默认，梦簇网图+检索）/ 入库（管线+上传+台账）/ 设置
       var svw = React.useState('atlas')
       var view = svw[0], setView = svw[1]
       // 家族树左栏折叠（管理员 2026-10-10：可向左隐藏，腾出全宽）
@@ -1337,7 +1337,7 @@ window.__ModuleLoader__.load({
           })
           .catch(function (err) { setDet({ slug: slug, detail: null, loading: false, error: String((err && err.message) || err) }) })
       }
-      /** 打开一条世界树记忆（非 wiki 条目：tag 筛选命中的 P3/回填记忆没有 wiki 页，走树核 entry_get） */
+      /** 打开一条脑图记忆（非 wiki 条目：tag 筛选命中的 P3/回填记忆没有 wiki 页，走树核 entry_get） */
       function loadMem(src) {
         // 记忆视图与日记视图互斥（同 openWiki）
         setDdet({ ws: '', id: '', data: null, loading: false, error: null, needWorkspace: false, candidates: null })
@@ -1662,7 +1662,7 @@ window.__ModuleLoader__.load({
       var srcTotal = srcList.reduce(function (a, w) { return a + (w.count || 0) }, 0)
 
       var VIEWS = [
-        { id: 'atlas', label: '星图' },
+        { id: 'atlas', label: '脑图' },
         { id: 'pipe', label: '入库' },
         { id: 'settings', label: '设置' },
       ]
@@ -1737,9 +1737,9 @@ window.__ModuleLoader__.load({
             h('div', { className: 'lbm-paneHead' },
               searching ? h('span', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
                 h('button', { className: 'lbm-btn lbm-btnGhost', style: { padding: '1px 8px', fontSize: 11 },
-                  onClick: function () { setQ(Object.assign({}, q, { text: '' })) }, title: '清空检索，回到星图' }, '‹ 星图'),
+                  onClick: function () { setQ(Object.assign({}, q, { text: '' })) }, title: '清空检索，回到脑图' }, '‹ 脑图'),
                 h('span', null, '检索结果 ' + (res.loading ? '…' : (res.hits ? res.hits.length + ' / ' + res.total : 0))))
-                : h('span', null, globe.classic ? '目录 · 家族树' : '星图 · 梦簇分区'),
+                : h('span', null, globe.classic ? '目录 · 家族树' : '脑图 · 梦簇分区'),
               searching ? h('span', { className: 'lbm-seg', style: { marginLeft: 'auto' } },
                 h('button', { type: 'button', className: 'lbm-segBtn' + (netMode === 'list' ? ' is-on' : ''),
                   onClick: function () { setNetMode('list') } }, '条目'),
@@ -1859,7 +1859,7 @@ window.__ModuleLoader__.load({
                     onSelect: openWiki, onDiary: openDiary,
                   }))))
         : h('div', { className: 'lbm-scroll' },
-            // 非星图视图：全宽渲染（入库=管线+上传+台账；设置）
+            // 非脑图视图：全宽渲染（入库=管线+上传+台账；设置）
             view === 'pipe' ? h(PipePanel, null)
             : view === 'settings' ? h(SettingsPanel, null)
             : null))

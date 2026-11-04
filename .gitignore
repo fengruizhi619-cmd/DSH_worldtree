@@ -3,6 +3,8 @@
 # 用户数据（记忆库/检查点，绝不入库）
 data/
 checkpoints/
+core/worldtree.db
+core/_req_gv.json
 
 # 设计文档 / 实验 / 测试 / 开发脚本（本地保留，不公开）
 docs/
@@ -19,9 +21,9 @@ core/seed_wiki.py
 core/_*probe*.py
 
 # 插件开发材料
-plugin/dsh-worldtree/_dev/
-plugin/dsh-worldtree/_bili_fix/
-plugin/dsh-worldtree/.git-plugin-archive/
+plugin/dsh-naotu/_dev/
+plugin/dsh-naotu/_bili_fix/
+plugin/dsh-naotu/.git-plugin-archive/
 
 # 通用
 __pycache__/
