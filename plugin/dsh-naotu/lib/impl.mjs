@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-export const PLUGIN_VERSION = '1.2.0'
+export const PLUGIN_VERSION = '1.2.1'
 export const TOOL_NAME = '_dsh_external_dsh_naotu'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/Feng'
@@ -93,11 +93,17 @@ const DEFAULTS = {
   injectRefillGuardChars: 40000, // 周期末补回护栏·字数（0=关）。与条数护栏 AND，先到先截。
   // 滑动窗口直注（2026-11-04 管理员 B+C 裁定）：最近 injectQwin 轮查询向量取均值，
   // 均值 race 融合分 ≥ injectQuickLine 且与单查询 race 共识（双榜 top12）→ 当轮直注
-  // ≤injectQuickTop 条。校准探针（真库 4 组同主题改写均值）：均值榜 ≥1.7 共 0-3 条，
-  // 1.5 线 6-20 条会溢出 → 线定 1.7（=wS+wK 饱和满层，归一化域非裸余弦）。
+  // ≤injectQuickTop 条。线 1.2（2026-11-04 场景⑤修正：原文口径 1.7=满层带；同义改写
+  // K=0 天花板=1.0，由代码内 S≥0.95 双口径判据兜住）。
   injectQwin: 3,
-  injectQuickLine: 1.7,
+  injectQuickLine: 1.2,
   injectQuickTop: 2,
+  /** LLM 重排闸（2026-11-04 管理员批准接入）：快轨直注与命中补漏的候选注入前，
+   * 交 deepseek-chat 判「与当前问题是否真相关」，不相关的丢弃。
+   * 依据：E3e 实测 P@3 +4.3pt / recall@3 +6.5pt（13+ 算法臂全负后首个正结果）。
+   * 降级：LLM 不可用/超时 → 跳过重排按原序注入（不阻塞主线），失败 warn 留痕。 */
+  injectRerank: true,
+  injectRerankTimeoutMs: 8000,
   /** 检查点调度器（2026-10-11）：五档稀释检查点周期触发 */
   ckptEnabled: true,
   ckptPy: 'E:/DSH_data/世界树/core/checkpoint.py',
@@ -394,6 +400,8 @@ function wikiMountPanelRoutes(ctx, cfg) {
                   injectQwin: file.injectQwin != null ? file.injectQwin : DEFAULTS.injectQwin,
                   injectQuickLine: file.injectQuickLine != null ? file.injectQuickLine : DEFAULTS.injectQuickLine,
                   injectQuickTop: file.injectQuickTop != null ? file.injectQuickTop : DEFAULTS.injectQuickTop,
+                  injectRerank: file.injectRerank != null ? file.injectRerank : DEFAULTS.injectRerank,
+                  injectRerankTimeoutMs: file.injectRerankTimeoutMs != null ? file.injectRerankTimeoutMs : DEFAULTS.injectRerankTimeoutMs,
                   p3BiliEnabled: file.p3BiliEnabled != null ? file.p3BiliEnabled : DEFAULTS.p3BiliEnabled,
                   p3BiliSummaryDirect: file.p3BiliSummaryDirect != null ? file.p3BiliSummaryDirect : DEFAULTS.p3BiliSummaryDirect,
                   p3BiliDb: file.p3BiliDb || DEFAULTS.p3BiliDb,
@@ -1278,10 +1286,21 @@ function injectMount(ctx, cfg) {
         // 触发双口径（2026-11-04 场景⑤实测裁定）：原文提问 → K 满层 → 融合分 ≥line（1.2 即近满分带）；
         // 同义改写 → K=0 → 纯语义近满分（S≥0.95 且 total≥1.0）。任一命中即候选。
         const hot = (r) => (r.total >= line) || ((r.S || 0) >= 0.95 && (r.total || 0) >= 1.0)
-        const cand = qtable
+        let cand = qtable
           .filter((r) => hot(r) && cons.has(r.source) && !entryInContext(r, ctxText)
                           && !pool.quick.includes(r.source))
           .slice(0, topN)
+        // LLM 重排闸（2026-11-04）：直注注入前判真相关；失败降级原序
+        if (cfg.injectRerank !== false && cand.length && q) {
+          try {
+            const rr = await guard(rerankGate(cfg, q, cand.map((r) => ({ source: r.source, head: r.head || '' })), (m2) => ctx.logger?.warn?.(`[dsh-naotu] ${m2}`)))
+            if (rr) {
+              const kept = cand.filter((r) => rr.has(r.source))
+              ctx.logger?.info?.(`[dsh-naotu] 滑窗直注重排闸：${cand.length} → ${kept.length}（丢 ${cand.length - kept.length}）`)
+              cand = kept
+            }
+          } catch { /* 降级原序 */ }
+        }
         if (cand.length) {
           const bd = await guard(callCore(cfg, { op: 'bodies', sources: cand.map((x) => x.source) }))
           const bodies = (bd && bd.ok && bd.data && bd.data.bodies) || {}
@@ -1316,11 +1335,22 @@ function injectMount(ctx, cfg) {
       //    ∩ 上下文短锚判"没有" → ≤missTop 条立刻补。「命中」这道门是它稀疏的关键。
       if (table.length && pool.reserve.length) {
         const hitSet = new Set(table.slice(0, Math.max(1, Number(cfg.injectPrefetchTop) || 10)).map((r) => r.source))
-        const cand = pool.reserve
+        let cand = pool.reserve
           .filter((it) => hitSet.has(it.source) && (it.injectedCycle || -1) !== pool.cycle.index
                            && !entryInContext(it, ctxText))
           .sort((a, b) => poolMean(b, pool.cycle.rounds) - poolMean(a, pool.cycle.rounds))
           .slice(0, Math.max(1, Number(cfg.injectMissTop) || 3))
+        // LLM 重排闸（2026-11-04）：命中补漏注入前判真相关；失败降级原序
+        if (cfg.injectRerank !== false && cand.length && q) {
+          try {
+            const rr2 = await guard(rerankGate(cfg, q, cand.map((r) => ({ source: r.source, head: r.head || '' })), (m2) => ctx.logger?.warn?.(`[dsh-naotu] ${m2}`)))
+            if (rr2) {
+              const kept = cand.filter((r) => rr2.has(r.source))
+              ctx.logger?.info?.(`[dsh-naotu] 命中补漏重排闸：${cand.length} → ${kept.length}`)
+              cand = kept
+            }
+          } catch { /* 降级原序 */ }
+        }
         if (cand.length) {
           const bd = await guard(callCore(cfg, { op: 'bodies', sources: cand.map((x) => x.source) }))
           const bodies = (bd && bd.ok && bd.data && bd.data.bodies) || {}
@@ -1460,6 +1490,45 @@ function p3ExtractHuman(evs) {
     }
   }
   return out
+}
+
+/* ── LLM 重排闸（2026-11-04 接入）：候选注入前判「与当前问题真相关」。
+ * 输入：q=用户问题, cands=[{source, head, body}]；输出：保留的 source 集合。
+ * 失败/超时 → null（调用方按原序注入），失败 warn 留痕（b76 教训：静默=不可诊断）。 */
+async function rerankGate(cfg, q, cands, log) {
+  if (!cands.length) return null
+  const llm = p3LLM()
+  if (!llm.key) return null
+  const list = cands.map((c, i) => (i + 1) + '. [' + c.source + '] ' + String(c.head || '').split('\n')[0].slice(0, 80)).join('\n')
+  const prompt = '判断下列记忆条目是否与用户问题真相关（回答主题本身，而非仅词面巧合）。\n用户问题：' + q.slice(0, 300) + '\n\n候选条目（标题）：\n' + list + '\n\n只输出 JSON：{"keep":[编号数组]}。编号从 1 开始；全都相关就全部保留，全都不相关给空数组。不要输出其他内容。'
+  const ctl = new AbortController()
+  const timer = setTimeout(() => ctl.abort(), Number(cfg.injectRerankTimeoutMs) || 8000)
+  try {
+    const res = await fetch(llm.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + llm.key },
+      body: JSON.stringify({ model: llm.model === 'deepseek-flash' ? 'deepseek-chat' : llm.model,
+        messages: [{ role: 'user', content: prompt }], max_tokens: 100, temperature: 0 }),
+      signal: ctl.signal })
+    clearTimeout(timer)
+    if (!res.ok) throw new Error('HTTP ' + res.status)
+    const j = await res.json()
+    const txt = String((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '')
+    const m = txt.match(/\{[^}]*\}/)
+    if (!m) throw new Error('no-json: ' + txt.slice(0, 60))
+    const keep = JSON.parse(m[0]).keep
+    if (!Array.isArray(keep)) throw new Error('keep-not-array')
+    const out = new Set()
+    for (const n of keep) {
+      const idx = Number(n) - 1
+      if (idx >= 0 && idx < cands.length) out.add(cands[idx].source)
+    }
+    return out
+  } catch (e) {
+    clearTimeout(timer)
+    if (log) log('LLM 重排闸失败（降级原序注入）：' + (e && e.message))
+    return null
+  }
 }
 
 function p3LLM() {
@@ -1977,5 +2046,5 @@ export function apply(ctx, input = {}) {
   )
 }
 
-export const __test = { resolveConfig, configFile, DEFAULTS, injectMount, injectHumanText, p3ExtractHuman, p3ParseEntries, injectBuildBlock, p3File, p3Load, p3Save, p3Fp, p3BiliFile, p3BiliLoad, p3BiliSave, p3BiliTick,
+export const __test = { resolveConfig, configFile, DEFAULTS, rerankGate, injectMount, injectHumanText, p3ExtractHuman, p3ParseEntries, injectBuildBlock, p3File, p3Load, p3Save, p3Fp, p3BiliFile, p3BiliLoad, p3BiliSave, p3BiliTick,
   setBiliSid: (s) => { p3LastSid = String(s || '') } }
