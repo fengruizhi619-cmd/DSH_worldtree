@@ -298,6 +298,7 @@ window.__ModuleLoader__.load({
       /* 详情 */
       '.nao-detail{flex:1;min-height:0;display:flex;flex-direction:column}',
       '.nao-detailBody{flex:1;overflow:auto;padding:12px 14px;font-size:13px;line-height:1.7;color:var(--dsw-alias-label-secondary,#5c5c66)}',
+      '.nao-detailMeta{font-size:11px;line-height:1.6;color:var(--dsw-alias-label-tertiary,#8a8a95);margin:-4px 0 10px;word-break:break-all}',
       '.nao-rep{font-size:13px;line-height:1.6;color:var(--dsw-alias-label-primary,#1b1b1f);padding:10px 12px;margin:10px 12px 4px;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.08))}',
       '.nao-evRow{display:block;width:calc(100% - 24px);margin:0 12px 6px;text-align:left;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;padding:7px 8px;font:inherit;font-size:12px;color:var(--dsw-alias-label-secondary,#5c5c66);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.nao-evRow:hover{background:var(--dsw-alias-bg-layer-2,#f2f2f4);color:var(--dsw-alias-label-primary,#1b1b1f)}',
@@ -971,7 +972,7 @@ window.__ModuleLoader__.load({
           if (shown >= 14) return
           var p = pos[id]; if (!p || p.r < 17) return
           var reg = (data.regions || {})[id] || {}
-          var nm = String(reg.rep || '').replace(/\s+/g, '').slice(0, 6) || String(id).slice(-6)
+          var nm = String(reg.label || reg.rep || '').replace(/\s+/g, '').slice(0, 8) || String(id).slice(-6)
           var h = hit[id] || 0
           ctx.font = (h ? '600 ' : '') + '11px system-ui'
           var w = ctx.measureText(nm).width
@@ -1019,7 +1020,7 @@ window.__ModuleLoader__.load({
         if (!id || !pt) { tip.style.display = 'none'; return }
         var data = dataR.current || {}
         var reg = (data.regions || {})[id] || {}
-        var nm = String(reg.rep || '').replace(/\s+/g, '').slice(0, 40) || String(id)
+        var nm = String(reg.label || reg.rep || '').replace(/\s+/g, '') || String(id)
         tip.textContent = nm + ' · ' + naoSize(reg) + ' 元记忆 · ' + (reg.nEvents || 0) + ' 元事件'
         tip.style.display = 'block'
         tip.style.left = Math.round(pt.x + 12) + 'px'
@@ -1083,7 +1084,8 @@ window.__ModuleLoader__.load({
       function openEntry(src) {
         setEntry({ loading: true, source: src })
         opGet('entry_get', { source: src }).then(function (j) {
-          setEntry(j && j.ok ? { loading: false, source: src, head: j.head, body: j.body, tags: j.tags } : { loading: false, source: src, error: (j && j.error) || '读取失败' })
+          var _e = (j && j.entry) || (j && j.ok ? j : null)
+          setEntry(_e ? { loading: false, source: src, head: _e.head, body: _e.body, tags: _e.tags || [], grewAt: _e.grew_at } : { loading: false, source: src, error: (j && j.error) || '条目不存在' })
         }).catch(function (e) { setEntry({ loading: false, source: src, error: String(e) }) })
       }
 
@@ -1117,6 +1119,10 @@ window.__ModuleLoader__.load({
               : h('div', { className: 'nao-detailBody' },
                 h('div', { style: { fontSize: '13px', fontWeight: 600, color: 'var(--dsw-alias-label-primary,#1b1b1f)', marginBottom: '8px', lineHeight: 1.5 } },
                   String(entry.head || '').split('\n')[0]),
+                h('div', { className: 'nao-detailMeta' },
+                  String(entry.source || '') +
+                  (entry.grewAt ? ' · ' + String(entry.grewAt).replace('T', ' ').slice(0, 16) : '') +
+                  (entry.tags && entry.tags.length ? ' · ' + entry.tags.slice(0, 6).join(' / ') : '')),
                 h(Md, { text: entry.body || '' })))
       } else if (res.q) {
         right = h('div', { style: { display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 } },
@@ -1229,7 +1235,7 @@ window.__ModuleLoader__.load({
       var tree = ts[0], setTree = ts[1]
       var loadTree = React.useCallback(function () {
         opGet('stats').then(function (j) {
-          setTree(j && j.ok ? { loading: false, count: j.entries || 0, mm: j.mm || 0 } : { loading: false, error: (j && j.error) || '读取失败' })
+          setTree(j && j.entries !== undefined && !j.error ? { loading: false, count: j.entries || 0, mm: j.mm || 0 } : { loading: false, error: (j && (j.error || j.message)) || '读取失败' })
         }).catch(function (e) { setTree({ loading: false, error: String(e) }) })
       }, [])
       React.useEffect(function () { loadTree() }, [loadTree])

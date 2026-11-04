@@ -1493,19 +1493,123 @@ def _cli():
         # 脑区总览（UI 用）：按规模 topN 盆 + 盆间 kNN 跨区边（mm_knn 为 JSON 邻接表）
         _topn = max(20, min(400, int(req.get("topn") or 120)))
         _c4 = sqlite3.connect(db)
-        _rows = _c4.execute(
+        _rows_all = _c4.execute(
             "SELECT m.region, COUNT(*) c FROM mm m WHERE m.region IS NOT NULL "
-            "GROUP BY m.region ORDER BY c DESC LIMIT ?", (_topn,)).fetchall()
+            "GROUP BY m.region ORDER BY c DESC LIMIT ?", (_topn * 6,)).fetchall()
+        # 垃圾盆过滤（2026-11-04 实测发现）：句拆把"### 机制 / ### 结论 / - **…"这类版式行
+        # 也写成元记忆，它们各自成盆并且规模很大，直接排进 top 会让整张图全是模板词。
+        _JPREFIX = ("#", "*", "-", ">", "|", "```")
+        _JWORD = ("结论", "机制", "终态", "原文", "用户目标", "任务", "摘要", "要点",
+                  "Open objective", "Open objectives", "产物", "背景", "角色", "说明", "本轮", "本次", "总结")
+        def _junk_text(t):
+            t = (t or "").strip()
+            if len(t) < 8:
+                return True
+            if t.startswith(_JPREFIX):
+                return True
+            for _w in _JWORD:
+                if t.startswith(_w):
+                    return True
+            return False
+        def _junk_tag(tg):
+            tg = (tg or "").strip()
+            if len(tg) < 2 or len(tg) > 14:
+                return True
+            if tg.startswith(_JPREFIX) or tg[0].isdigit():
+                return True
+            for _w in _JWORD:
+                if tg.startswith(_w):
+                    return True
+            if not any(ch.isalnum() or ch >= "一" for ch in tg):
+                return True
+            return False
+        _rows = []
+        _repmap = {}
+        for _r in _rows_all:
+            _rp = _c4.execute("SELECT text FROM mm WHERE region=? ORDER BY length(text) DESC LIMIT 1", (_r[0],)).fetchone()
+            if _rp and _junk_text(_rp[0]):
+                continue
+            _rows.append(_r)
+            _repmap[_r[0]] = (_rp[0] if _rp else "")
+            if len(_rows) >= _topn:
+                break
         _ids = [r[0] for r in _rows]
         _idx = {b: i for i, b in enumerate(_ids)}
         _reg = {}
         for _b, _c in _rows:
-            _rep = _c4.execute("SELECT text FROM mm WHERE region=? LIMIT 1", (_b,)).fetchone()
+            _rep = _repmap.get(_b, "")
             _evs = _c4.execute(
                 "SELECT DISTINCT event FROM mm WHERE region=? LIMIT 8", (_b,)).fetchall()
-            _reg[_b] = {"id": _b, "size": _c,
-                        "rep": (_rep[0][:44] if _rep else ""),
-                        "events": [e[0] for e in _evs], "nEvents": len(_evs)}
+            _evlist = [e[0] for e in _evs]
+            _reg[_b] = {"id": _b, "size": _c, "rep": _rep[:44],
+                        "events": _evlist, "nEvents": len(_evlist)}
+        # 区标签（2026-11-04）：用区内事件的真实 tag 聚合出「主题词」，比句子片段可读。
+        # 取该盆所有事件（不限 8 条）的 tags 计数 top3，按票数排序；无 tag 则退化为 rep 前 12 字。
+        _lab = {}
+        _tagrows = _c4.execute(
+            "SELECT er.basin, t.tag, COUNT(*) c FROM entry_region er "
+            "JOIN tags t ON t.source = er.event GROUP BY er.basin, t.tag").fetchall()
+        for _b2, _tg, _cnt2 in _tagrows:
+            if _b2 not in _reg:
+                continue
+            _lab.setdefault(_b2, []).append((_cnt2, _tg))
+        for _b in list(_reg.keys()):
+            _tops = sorted(_lab.get(_b, []), key=lambda z: (-z[0], len(z[1])))[:3]
+            _words = []
+            for _cnt2, _tg in _tops:
+                _tg = (_tg or "").strip()
+                # 标签垃圾过滤：版式行/超短/超长/纯符号都不当主题词
+                if _junk_tag(_tg):
+                    continue
+                # 去重包含关系（"注入池" 与 "注入池赛马" 只留长的）
+                if any((_tg in _w or _w in _tg) and _tg != _w for _w in _words):
+                    continue
+                _words.append(_tg)
+            if _words:
+                _reg[_b]["label"] = " · ".join(_words[:2])
+                _reg[_b]["tags"] = _words
+        _HEAD_PUNC = "：:;；，,。.、\n\r\t"
+        def _head_clause(t):
+            t = (t or "").strip()
+            _out = []
+            for _ch in t:
+                if _ch in _HEAD_PUNC or _ch in "#*-|>`":
+                    if _out:
+                        break
+                    continue
+                _out.append(_ch)
+                if len(_out) >= 16:
+                    break
+            return "".join(_out).strip()
+        for _b in list(_reg.keys()):
+            _hs = _c4.execute(
+                "SELECT e.head FROM entry_region er JOIN entries e ON e.source = er.event "
+                "WHERE er.basin = ? LIMIT 40", (_b,)).fetchall()
+            _votes = {}
+            for (_h,) in _hs:
+                _c1 = _head_clause(_h)
+                if len(_c1) >= 4 and not _junk_tag(_c1[:14]):
+                    _votes[_c1] = _votes.get(_c1, 0) + 1
+            if _votes:
+                _best = sorted(_votes.items(), key=lambda kv: (-kv[1], len(kv[0])))[0][0]
+                _reg[_b]["label"] = _best
+                _reg[_b]["labelSrc"] = "head"
+        _PUNC = "：:;；，,。.、\n\r\t#*>-|`[]()（）「」【】"
+        def _clause(t):
+            t = (t or "").strip().lstrip(_PUNC).strip()
+            _out = []
+            for _ch in t:
+                if _ch in _PUNC:
+                    break
+                _out.append(_ch)
+                if len(_out) >= 14:
+                    break
+            return "".join(_out).strip()
+        for _b in list(_reg.keys()):
+            if "label" not in _reg[_b]:
+                _lb = _clause(_reg[_b]["rep"])
+                _reg[_b]["label"] = (_lb or str(_b)[:12])
+                _reg[_b]["tags"] = []
         # 跨区边：统计 mm_knn 中两端落在 topn 盆且盆不同的对
         _cnt = {}
         _mmreg = dict(_c4.execute("SELECT mm_id, region FROM mm WHERE region IS NOT NULL"))
