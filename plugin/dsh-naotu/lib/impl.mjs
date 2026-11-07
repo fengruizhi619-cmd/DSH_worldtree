@@ -12,7 +12,7 @@
  */
 import { execFile, spawn } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
-import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Readable } from 'node:stream'
@@ -20,7 +20,7 @@ import { pipeline } from 'node:stream/promises'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-export const PLUGIN_VERSION = '1.3.0'
+export const PLUGIN_VERSION = '1.3.1'
 export const TOOL_NAME = '_dsh_external_dsh_naotu'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/Feng'
@@ -57,7 +57,9 @@ const DEFAULTS = {
   /** 树核 Python */
   pyExe: 'E:/python/python.exe',
   corePy: 'E:/DSH_data/世界树/core/naotu.py',
-  /** 树库（v1.3.0：默认挪到用户配置目录——新用户零手工自动建库；老用户 config.json 已覆盖不受影响） */
+  /** 树库（v1.3.0：默认挪到用户配置目录——新用户零手工自动建库）
+   *  v1.3.1：老用户兜底——config.json 未显式写 dbPath 且旧库（<core>/../data/worldtree.db）
+   *  存在时自动继续用旧库，避免「默认路径一改，凭空建出空库」把整库"弄丢"。 */
   dbPath: join(DSH_HOME, 'naotu', 'naotu.db'),
   /** 编码服务（内置 dsh-liubian-memory 提供） */
   embedUrl: 'http://127.0.0.1:8082',
@@ -142,8 +144,17 @@ function readJson(file) {
   }
 }
 
+/** v1.3.1：旧库位置——v1.3.0 之前 dbPath 默认是 <core>/../data/worldtree.db */
+function legacyDbFile(cfg) {
+  try { return join(dirname(cfg.corePy), '..', 'data', 'worldtree.db') } catch { return '' }
+}
+function fileSizeSafe(p) {
+  try { return statSync(p).size } catch { return -1 }
+}
+
 export function resolveConfig(input = {}) {
-  const merged = { ...DEFAULTS, ...readJson(configFile()) }
+  const fileCfg = readJson(configFile())
+  const merged = { ...DEFAULTS, ...fileCfg }
   const src = input && typeof input === 'object' ? input : {}
   for (const [k, v] of Object.entries(src)) {
     if (v === undefined || v === null || v === '') continue
@@ -155,6 +166,16 @@ export function resolveConfig(input = {}) {
     if (typeof def === 'number' && typeof v === 'string' && v.trim() !== '') {
       const n = Number(v)
       if (Number.isFinite(n)) merged[k] = n
+    }
+  }
+  // v1.3.1 老库兜底：config.json 没显式写 dbPath（仍吃默认值）时，若旧库存在且比默认位置
+  // 的库大得多，继续用旧库——否则 v1.3.0 改默认路径会让老用户的整库"看起来消失"（实测事故）。
+  const explicitDb = typeof fileCfg.dbPath === 'string' && fileCfg.dbPath.trim() !== ''
+  if (!explicitDb) {
+    const legacy = legacyDbFile(merged)
+    const legacySize = legacy ? fileSizeSafe(legacy) : -1
+    if (legacySize > 2 * 1024 * 1024 && fileSizeSafe(merged.dbPath) < legacySize) {
+      merged.dbPath = legacy
     }
   }
   return merged
