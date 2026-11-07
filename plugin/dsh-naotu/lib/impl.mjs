@@ -20,7 +20,7 @@ import { pipeline } from 'node:stream/promises'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-export const PLUGIN_VERSION = '1.3.1'
+export const PLUGIN_VERSION = '1.4.0'
 export const TOOL_NAME = '_dsh_external_dsh_naotu'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/Feng'
@@ -80,7 +80,11 @@ const DEFAULTS = {
   /** P3 上行：压缩触发式提炼（管理员定纲：上下文被压缩 → 全部送提炼 → 不限篇数 → 编码上树） */
   p3Enabled: true,
   p3MinChars: 2000,
-  p3ChunkChars: 40000,        // 分片提炼：单片上下文上限（防输出截断丢批）
+  p3ChunkChars: 12000,        // 分片提炼：单片上下文上限（防输出截断丢批）。
+                              // v1.4.0 由 40000 降到 12000：实测 deepseek-chat 12K 片 6s 出结果，
+                              // 40K 片在推理模型下单片可达数分钟 → 整批跨过看门狗阈值被误杀（活锁）
+  p3MaxTokens: 8192,          // 单片输出上限。v1.4.0 由 16384 降到 8192：12K 片正常产出 ~1.7K 字，
+                              // 16384 只会让慢模型更慢；截断由 p3ParseEntries 容错回收
   p3TotalChars: 330000,       // 单次压缩提炼的总字数上限。2026-10-12 按历史 4 次压缩的
                               // 未截断需求均值定（59.9万/31.6万/36.1万/2.8万 → 33 万）；
                               // 截断保新弃旧；可被设置界面/配置文件覆盖
@@ -1581,12 +1585,16 @@ const p3Recent = []           // 最近压缩检测（记录视图展示，内�
 
 /* p3Busy 看门狗（2026-10-12）：一次网络僵死让提炼 fetch 挂了 4 小时（AbortSignal
  * 对已建立的僵死连接不生效——实证），p3Busy 恒真 → 后续所有 P3 作业排队 forever。
- * 每 60s 巡检：busy 超 10 分钟 → 强制解锁并重排当前作业（作业有落盘，不丢）。 */
+ * 每 60s 巡检：busy 超阈值 → 强制解锁并重排当前作业（作业有落盘，不丢）。
+ * v1.4.0（2026-11-07）：阈值 10 → 30 分钟。实测 324K 字批 9 片 × 每片十余秒到两分钟
+ * 即可跨过 10 分钟门槛，看门狗把还在正常跑的作业当卡死掐掉 → 重排从头再来 = 活锁
+ * （用户看到的就是「一直卡着没有进度」）。阈值放宽 + 片级进度日志后不再误杀。 */
 let p3WatchdogCtx = null
+const P3_BUSY_STUCK_MIN = 30
 function p3WatchdogTick() {
   if (!p3Busy || !p3BusySince) return
   const stuckMin = (Date.now() - p3BusySince) / 60000
-  if (stuckMin < 10) return
+  if (stuckMin < P3_BUSY_STUCK_MIN) return
   p3Busy = false
   p3BusySince = 0
   const job = p3Queue[0]
@@ -2054,10 +2062,15 @@ function p3Drain(ctx, cfg) {
           cur.push(seg); curLen += seg.length
         }
         if (cur.length) slices.push(cur)
+        // v1.4.0 片级续跑：上一轮（看门狗重排 / 进程重启）已完成的片从 partialDistilled
+        // 复用，从第 slicesDone 片接着往下跑——不再「重排即从头」，这是活锁的第二个成因。
+        let arr = Array.isArray(job.partialDistilled) ? job.partialDistilled.slice() : []
+        const doneBefore = arr.length ? (Number(job.slicesDone) || 0) : 0
         job.phase = 'distill'
         job.slicesTotal = slices.length
-        job.slicesDone = 0
-        ctx.logger?.info?.(`[dsh-naotu] P3：${job.sid} 开始提炼（${slices.length} 片，输出上限 ${hot.maxTokens} tok）`)
+        job.slicesDone = doneBefore
+        ctx.logger?.info?.(`[dsh-naotu] P3：${job.sid} 开始提炼（${slices.length} 片，输出上限 ${hot.maxTokens} tok` +
+          (doneBefore ? `，续跑自第 ${doneBefore + 1} 片，已有 ${arr.length} 条` : '') + '）')
         const callLLM = async (sl) => {
           const res = await fetch(llm.url, {
             method: 'POST',
@@ -2108,11 +2121,15 @@ function p3Drain(ctx, cfg) {
             return []
           }
         }
-        arr = []
-        for (const sl of slices) {
-          const part = await distillSlice(sl, 0)
+        for (let si = doneBefore; si < slices.length; si++) {
+          const t0 = Date.now()
+          const part = await distillSlice(slices[si], 0)
           arr.push(...part)
-          job.slicesDone = (job.slicesDone || 0) + 1
+          job.slicesDone = si + 1
+          job.partialDistilled = arr.slice()      // 片级锚点：中断/重排可续跑
+          p3Save()
+          ctx.logger?.info?.(`[dsh-naotu] P3：${job.sid} 提炼进度 ${si + 1}/${slices.length} 片` +
+            `（本片 ${((Date.now() - t0) / 1000).toFixed(0)}s，${part.length} 条，累计 ${arr.length} 条）`)
         }
         if (!arr.length) {
           ctx.logger?.info?.('[dsh-naotu] P3：本批无可提炼条目')
@@ -2122,6 +2139,7 @@ function p3Drain(ctx, cfg) {
         }
         job.distilled = arr
         job.batch = ++p3Batch
+        delete job.partialDistilled             // 提炼完成：片级中间态清掉（断点续传只看 distilled）
         p3Save()                              // 断点续传锚点①：提炼完成即落盘（texts 随之丢弃）
       }
       job.phase = 'insert'

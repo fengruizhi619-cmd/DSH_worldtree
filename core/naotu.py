@@ -823,8 +823,60 @@ def op_wt_tree(t):
             "roots": [r["slug"] for r in roots], "orphans": [], "entries": entries}
 
 
+def _pid_alive(pid):
+    """进程存活探针：True=活着或无法判定，False=确定已死。
+
+    ⚠ Windows 上**绝不能用 os.kill(pid, 0)**——CPython 的 Windows 实现会走
+    OpenProcess+TerminateProcess，等于用退出码 0 杀掉持有者。这里 Windows 走
+    ctypes OpenProcess(SYNCHRONIZE)+WaitForSingleObject(0)，Posix 才用 kill(0)。
+    """
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return True
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        SYNCHRONIZE = 0x00100000
+        WAIT_TIMEOUT = 0x00000102
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.OpenProcess.restype = wintypes.HANDLE
+        k32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        k32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        k32.WaitForSingleObject.restype = wintypes.DWORD
+        k32.CloseHandle.argtypes = [wintypes.HANDLE]
+        h = k32.OpenProcess(SYNCHRONIZE, False, pid)
+        if not h:
+            err = ctypes.get_last_error()
+            # 5=拒绝访问（别人的进程，还活着）；87=参数错误（无此 PID）
+            return err != 87
+        try:
+            return k32.WaitForSingleObject(h, 0) == WAIT_TIMEOUT
+        finally:
+            k32.CloseHandle(h)
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return True
+
+
 def _lock_insert(db):
-    """insert 跨进程锁：O_CREAT|O_EXCL 抢锁文件（内容=本进程 PID），120s 超时视为陈锁接管。"""
+    """insert 跨进程锁：O_CREAT|O_EXCL 抢锁文件（内容=本进程 PID）。
+
+    接管规则（2026-11-07 修）：读到持有者 PID 且该进程已死 → **立即**接管，
+    不再傻等 120s。根因实证：死锁文件 worldtree.db.insert.lock（PID 已退）让每次
+    insert 都卡满 120s，而调用方 callCore 的 helper 超时是 60s —— 子进程被掐死，
+    插入永远失败、任务在队列里空转（P3「一直卡着没有进度」的真身）。
+    活进程持锁仍按 120s 超时兜底（防对方卡死）。
+    """
     lock = db + ".insert.lock"
     deadline = time.time() + 120
     while True:
@@ -838,9 +890,25 @@ def _lock_insert(db):
         except FileExistsError:
             if os.environ.get("WT_LOCK_DEBUG"):
                 sys.stderr.write("[lock] busy pid=%d t=%.3f\n" % (os.getpid(), time.time() % 1000))
+            owner = ""
+            try:
+                with open(lock, "r", encoding="utf-8") as f:
+                    owner = f.read().strip()
+            except OSError:
+                pass
+            if owner and not _pid_alive(owner):
+                try:
+                    os.unlink(lock)
+                    sys.stderr.write("[lock] 接管死锁（持有者 PID %s 已退出）\n" % owner)
+                except OSError as exc:
+                    sys.stderr.write("[lock] 死锁接管失败（%s）：%s\n" % (owner, exc))
+                deadline = time.time() + 120
+                time.sleep(0.05)
+                continue
             if time.time() > deadline:
                 try:
                     os.unlink(lock)
+                    sys.stderr.write("[lock] 120s 超时接管（持有者 %s 未释放）\n" % (owner or "未知"))
                 except OSError:
                     pass
                 deadline = time.time() + 120
