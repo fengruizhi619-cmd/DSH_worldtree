@@ -740,6 +740,7 @@ window.__ModuleLoader__.load({
 
     /* ── 设置视图：元数据驱动渲染（后端 settings_get 新增键自动出现在「其他」组，界面永不过时）── */
     var SETTINGS_GROUPS = [
+      { id: 'embed', title: '向量服务', desc: '本地嵌入模型（llama.cpp + Qwen3-Embedding）——首次使用一键下载，约 0.7GB；也可指向已有部署' },
       { id: 'api', title: '提炼 API', desc: '压缩提炼与重排闸共用的外部大模型（OpenAI 兼容），保存后热生效' },
       { id: 'p3', title: '压缩提炼', desc: '上下文被压缩 → 区间内容送提炼上树；分片控制防截断，超出总上限保新弃旧' },
       { id: 'pool', title: '注入池 · 赛马与直注', desc: '两级赛马决定谁留下；滑窗均值直注与命中补漏决定谁进来（LLM 重排闸把关真相关）' },
@@ -777,6 +778,64 @@ window.__ModuleLoader__.load({
       ckptEnabled:    { grp: 'ckpt', label: '调度开关', bool: true },
       ckptIntervalMs: { grp: 'ckpt', label: '巡检间隔（ms）', ph: '600000' },
     }
+    /* ── 向量服务一键下载卡（v1.3.0）────────────────────────────────────────
+     * 状态三行（llama-server / 模型 / 下载进度）+ 变体选择 + 下载按钮。
+     * 轮询链式：点击后 busy 期间每 1.5s 拉一次 embed_deps_status，终态停。
+     */
+    function EmbedDepsCard() {
+      var st = React.useState(null)
+      var sv = st[0], setSv = st[1]
+      var vr = React.useState('vulkan')
+      var variant = vr[0], setVariant = vr[1]
+      function pull(chain) {
+        fetchJson(API + '?op=embed_deps_status')
+          .then(function (j) {
+            var s = (j && j.ok && j.state) ? j.state : { err: (j && j.error) || '读取失败' }
+            setSv(s)
+            if (chain && s.busy) setTimeout(function () { pull(true) }, 1500)
+          })
+          .catch(function (e2) { setSv({ err: String(e2) }) })
+      }
+      React.useEffect(function () { pull(false) }, [])
+      function start() {
+        setSv(Object.assign({}, sv, { busy: true, phase: 'start', err: '' }))
+        fetch(API + '?op=embed_deps_download&variant=' + encodeURIComponent(variant))
+          .then(function () { pull(true) })
+          .catch(function () { setSv({ err: '启动下载失败' }) })
+      }
+      if (!sv) return h('div', { className: 'lbm-fldHint' }, '读取向量服务状态…')
+      var pct = sv.total ? Math.min(100, Math.round(sv.received * 100 / sv.total)) : 0
+      var phaseText = { start: '准备中…', resolve: '查询 llama.cpp 版本…', 'llama-server': '下载 llama.cpp', unpack: '解压中…', model: '下载嵌入模型', config: '写配置…', done: '✓ 就绪', error: '✗ 失败', idle: '' }[sv.phase] || sv.phase
+      return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+        h('div', { className: 'lbm-fld' },
+          h('span', { className: 'lbm-fldLabel' }, 'llama-server'),
+          h('span', { style: { color: sv.exeOk ? 'var(--dsw-alias-text-success, #2e7d32)' : 'var(--dsw-alias-text-danger, #c62828)' } },
+            (sv.exeOk ? '✓ ' : '✗ ') + (sv.exe || '未配置'))),
+        h('div', { className: 'lbm-fld' },
+          h('span', { className: 'lbm-fldLabel' }, '嵌入模型'),
+          h('span', { style: { color: sv.modelOk ? 'var(--dsw-alias-text-success, #2e7d32)' : 'var(--dsw-alias-text-danger, #c62828)' } },
+            (sv.modelOk ? '✓ ' : '✗ ') + (sv.model || '未配置'))),
+        h('div', { className: 'lbm-fld' },
+          h('span', { className: 'lbm-fldLabel' }, '下载变体'),
+          h('select', {
+            className: 'lbm-input', value: variant, style: { minWidth: 240 },
+            onChange: function (e) { setVariant(e.target.value) },
+            disabled: !!sv.busy },
+            (sv.variants || [{ key: 'vulkan', label: 'Vulkan · 通吃 A/N/Intel 显卡（~36MB）' }, { key: 'cpu', label: 'CPU · 无显卡兜底（~24MB）' }, { key: 'cuda', label: 'CUDA 12.4 · N 卡最快，自带运行时（~373MB）' }])
+              .map(function (v) { return h('option', { key: v.key, value: v.key }, v.label) }))),
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+          h('button', { className: 'lbm-btn lbm-btnPrimary', type: 'button', onClick: start, disabled: !!sv.busy },
+            sv.busy ? '下载中…' : '一键下载到 ' + (sv.dir || '~/.dsh/naotu/embed')),
+          h('span', { className: 'lbm-revs' }, phaseText)),
+        sv.busy && sv.total ? h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+          h('div', { style: { flex: 1, height: 6, borderRadius: 3, background: 'var(--dsw-alias-bg-layer-3, #e0e0e0)', overflow: 'hidden' } },
+            h('div', { style: { width: pct + '%', height: '100%', background: 'var(--dsw-alias-brand-primary, #7c5cff)', transition: 'width .3s' } })),
+          h('span', { className: 'lbm-fldHint' }, (sv.received / 1048576).toFixed(1) + ' / ' + (sv.total / 1048576).toFixed(1) + ' MB（' + pct + '%）')) : null,
+        sv.busy && !sv.total && sv.phase !== 'config' ? h('div', { className: 'lbm-fldHint' }, '下载中（尚未取得总大小）…') : null,
+        sv.err ? h('div', { className: 'lbm-err' }, sv.err) : null,
+        h('span', { className: 'lbm-fldHint' }, '下载完成自动写入 embed.json 并由看门狗拉起服务；模型为 Qwen3-Embedding-0.6B Q8_0（ModelScope 官方源）'))
+    }
+
     function SettingsPanel(props) {
       var st = React.useState(null)
       var sv = st[0], setSv = st[1]
@@ -827,6 +886,12 @@ window.__ModuleLoader__.load({
       var extra = Object.keys(sv).filter(function (k) { return !known.has(k) })
       return h('div', { style: { padding: '16px 20px 40px', maxWidth: 720, margin: '0 auto' } },
         SETTINGS_GROUPS.map(function (g) {
+          if (g.id === 'embed') {
+            return h('div', { key: 'embed', className: 'lbm-card' },
+              h('div', { className: 'lbm-cardTitle' }, g.title),
+              h('div', { className: 'lbm-cardDesc' }, g.desc),
+              h(EmbedDepsCard))
+          }
           var keys = Object.keys(SETTINGS_META).filter(function (k) { return SETTINGS_META[k].grp === g.id && sv[k] !== undefined })
           if (!keys.length) return null
           return h('div', { key: g.id, className: 'lbm-card' },

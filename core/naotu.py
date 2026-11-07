@@ -876,6 +876,7 @@ def _cli():
     db = os.environ.get("WT_DB", r"E:\DSH_data\世界树\data\worldtree.db")
     # 清空重长（2026-10-10）：库不存在 = 全新世界，自动创建，不再要求迁移。
     # 启动即幂等建全表——空库上调 tag_table/tag_filter 等只读 op 不再炸 no such table。
+    os.makedirs(os.path.dirname(db) or ".", exist_ok=True)   # v1.3.0：父目录缺失时 L879 connect 会炸
     _c0 = sqlite3.connect(db)
     _c0.executescript(SCHEMA)
     _c0.commit()

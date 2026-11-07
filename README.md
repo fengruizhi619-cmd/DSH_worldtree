@@ -1,7 +1,5 @@
 # dsh-naotu —— 脑图：DSH 记忆系统插件
 
-> 原名「世界树」（DSH_worldtree），2026-11 更名。
-
 DeepSeek Harness（DSH）的长期记忆系统插件。一条链路讲完它做的事：
 
 1. **蒸馏入库**——会话上下文被压缩时，自动读取压缩区间、LLM 分片提炼成结构化知识条目（元事件）写入本地 SQLite；
@@ -30,12 +28,12 @@ plugin/dsh-naotu/            DSH 插件本体
 
 插件按 `../../core/` 相对路径引用树核，需保持本仓库目录布局：clone 后把 `plugin/dsh-naotu/` 装配进 DSH 插件目录体系（或用 profile link），`core/` 留在同级相对位置。
 
-- 树库数据落 `data/naotu.db`（首次运行自动建表；路径可在面板「设置」中配置）
-- 用户配置在 `~/.dsh/naotu/`（config.json / 注入池 / 睡眠缓存 / 提炼续传队列；由旧 `~/.dsh/worldtree` 自动迁移）
+- 树库数据落 `~/.dsh/naotu/naotu.db`——**首次运行自动创建**（挂载即建全表，零手工初始化；路径可在面板「设置」中配置）
+- 用户配置在 `~/.dsh/naotu/`（config.json / 注入池 / 睡眠缓存 / 提炼续传队列）
 
 ## 依赖
 
-- **内置向量化服务**：自托管 llama-server（Qwen3-Embedding-0.6B Q4_K_M，端口 8082），自动探活 / 接管 / 拉起 / 看门狗。需自备 llama-server 可执行文件与 GGUF 模型；服务不可用时词面/血缘通道优雅降级
+- **内置向量化服务**：自托管 llama.cpp + Qwen3-Embedding-0.6B GGUF（端口 8082），自动探活 / 接管 / 拉起 / 看门狗。**面板「设置 → 向量服务」一键下载**（llama.cpp 自 GitHub Releases、模型自 ModelScope，约 0.7GB，支持 Vulkan / CUDA / CPU 三种变体）；也可指向已有部署。服务不可用时词面/血缘通道优雅降级
 - **LLM 提炼/重排 API**：任意 OpenAI 兼容端点（蒸馏与注入重排闸共用，面板可配）
 - wiki 库 liubian.db：`helper/wiki_store.py` 只读消费，不含于本仓库（自 v1 迁移，路径可配）
 - DSH Desktop 运行环境（cordis 4 / dsh-tools）

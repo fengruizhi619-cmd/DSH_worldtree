@@ -12,13 +12,15 @@
  */
 import { execFile, spawn } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-export const PLUGIN_VERSION = '1.2.4'
+export const PLUGIN_VERSION = '1.3.0'
 export const TOOL_NAME = '_dsh_external_dsh_naotu'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/Feng'
@@ -55,8 +57,8 @@ const DEFAULTS = {
   /** 树核 Python */
   pyExe: 'E:/python/python.exe',
   corePy: 'E:/DSH_data/世界树/core/naotu.py',
-  /** 树库 */
-  dbPath: 'E:/DSH_data/世界树/data/worldtree.db',
+  /** 树库（v1.3.0：默认挪到用户配置目录——新用户零手工自动建库；老用户 config.json 已覆盖不受影响） */
+  dbPath: join(DSH_HOME, 'naotu', 'naotu.db'),
   /** 编码服务（内置 dsh-liubian-memory 提供） */
   embedUrl: 'http://127.0.0.1:8082',
   /** wiki_store 副本（流变wiki UI 后端，ro 直连 liubian.db） */
@@ -226,7 +228,7 @@ async function embed(cfg, texts) {
 export const PANEL_ID = 'liubianwiki'
 export const ROUTE_PATH = '/api/liubian-wiki'
 export const CONTRACT_VERSION = '1.0'
-const WIKI_OPS = ['health', 'tree', 'get', 'find', 'diary_tree', 'diary_list', 'diary_get', 'uploads', 'wt_tree', 'tag_table', 'tag_filter', 'entry_tags', 'entry_get', 'graph_view', 'dream', 'insert', 'p3_status', 'settings_get', 'settings_save', 'brain', 'recent', 'stats', 'mm_stats', 'mm_backfill_gap', 'race', 'region_rename']
+const WIKI_OPS = ['health', 'tree', 'get', 'find', 'diary_tree', 'diary_list', 'diary_get', 'uploads', 'wt_tree', 'tag_table', 'tag_filter', 'entry_tags', 'entry_get', 'graph_view', 'dream', 'insert', 'p3_status', 'settings_get', 'settings_save', 'brain', 'recent', 'stats', 'mm_stats', 'mm_backfill_gap', 'race', 'region_rename', 'embed_deps_status', 'embed_deps_download']
 
 function wikiSendJson(res, status, obj) {
   try {
@@ -563,6 +565,30 @@ function wikiMountPanelRoutes(ctx, cfg) {
                 wikiSendJson(res, 200, await wikiCallHelper(cfg, 'tree', {}))
                 return
               }
+              if (op === 'embed_deps_status') {
+                const ec = embedResolveConfig()
+                const ai = Array.isArray(ec.serverArgs) ? ec.serverArgs.indexOf('-m') : -1
+                const mdl = ai >= 0 ? String(ec.serverArgs[ai + 1] || '') : ''
+                wikiSendJson(res, 200, {
+                  ok: true,
+                  state: {
+                    exe: ec.serverExe || '', exeOk: !!(ec.serverExe && existsSync(ec.serverExe)),
+                    model: mdl, modelOk: !!mdl && existsSync(mdl),
+                    dir: embedDlRoot(),
+                    ...embedDlState,
+                    variants: Object.entries(EMBED_DL_VARIANTS).map(([k, v]) => ({ key: k, label: v.label })),
+                  },
+                })
+                return
+              }
+              if (op === 'embed_deps_download') {
+                if (embedDlState.busy) { wikiSendJson(res, 409, { ok: false, error: '下载进行中：' + embedDlState.phase }); return }
+                const variant = ['vulkan', 'cpu', 'cuda'].includes(String(params.variant)) ? String(params.variant) : 'vulkan'
+                embedDlState = { busy: true, phase: 'start', received: 0, total: 0, err: '', variant, since: Date.now() }
+                wikiSendJson(res, 200, { ok: true, variant })   // 先应答，下载转后台
+                embedDlRun(variant, { noConfig: params.noConfig === '1' || params.noConfig === true, dir: params.dir || '' })
+                return
+              }
               if (op === 'p3_status') {
                 // P3 管线实时状态（记录视图进度条数据源）：作业阶段/片与条目进度 + 最近压缩检测
                 wikiSendJson(res, 200, {
@@ -806,6 +832,113 @@ function embedLaunch(cfg) {
     return '已启动（直起 exe，无窗）'
   } catch (err) {
     return '[错误] ' + ((err && err.message) || String(err))
+  }
+}
+
+/* ── 向量服务一键下载（v1.3.0）─────────────────────────────────────────────
+ * 新用户零手工：面板「设置 → 向量服务」一键拉 llama.cpp（GitHub Releases）
+ * + Qwen3-Embedding-0.6B GGUF（ModelScope 官方 Q8_0，~610MB；Q4_K_M 无墙内
+ * 镜像，且量化阶梯实测 Q8 与 Q4 无差异）。流程：下载 → 解压 → 写 embed.json
+ * → 由既有 watchdog/ensure 链路自动拉起。下载在 node 侧异步流式，不阻塞面板。
+ */
+const EMBED_DL_VARIANTS = {
+  vulkan: { label: 'Vulkan · 通吃 A/N/Intel 显卡（~36MB）', file: (tag) => `llama-${tag}-bin-win-vulkan-x64.zip` },
+  cpu: { label: 'CPU · 无显卡兜底（~24MB）', file: (tag) => `llama-${tag}-bin-win-cpu-x64.zip` },
+  cuda: { label: 'CUDA 12.4 · N 卡最快，自带运行时（~373MB）', file: () => 'cudart-llama-bin-win-cuda-12.4-x64.zip' },
+}
+const EMBED_DL_MODEL = {
+  url: 'https://modelscope.cn/models/Qwen/Qwen3-Embedding-0.6B-GGUF/resolve/master/Qwen3-Embedding-0.6B-Q8_0.gguf',
+  file: 'Qwen3-Embedding-0.6B-Q8_0.gguf',
+}
+let embedDlState = { busy: false, phase: 'idle', received: 0, total: 0, err: '', variant: '', since: 0 }
+
+function embedDlRoot() { return join(EMBED_DSH_HOME, 'naotu', 'embed') }
+
+async function embedDlFetchStream(url, to, onChunk) {
+  const res = await fetch(url, { redirect: 'follow' })
+  if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}：${url}`)
+  const total = Number(res.headers.get('content-length')) || 0
+  let received = 0
+  await pipeline(
+    Readable.fromWeb(res.body),
+    async function* (src) {
+      for await (const chunk of src) { received += chunk.length; onChunk(received, total); yield chunk }
+    },
+    createWriteStream(to),
+  )
+  return { received, total }
+}
+
+async function embedDlRun(variantKey, opts) {
+  const v = EMBED_DL_VARIANTS[variantKey] || EMBED_DL_VARIANTS.vulkan
+  const root = String(opts && opts.dir || embedDlRoot())
+  const binDir = join(root, 'bin')
+  const mdlDir = join(root, 'models')
+  try {
+    embedDlState = { busy: true, phase: 'resolve', received: 0, total: 0, err: '', variant: variantKey, since: Date.now() }
+    mkdirSync(root, { recursive: true })
+    // ① 取最新带 win 资产的 llama.cpp release（prerelease 即常规发布渠道）
+    const rel = await fetch('https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=8', {
+      headers: { 'User-Agent': 'dsh-naotu' },
+    }).then((r) => r.json())
+    const rel0 = (Array.isArray(rel) ? rel : []).find((x) => (x.assets || []).some((a) => a.name === v.file(x.tag_name)))
+    if (!rel0) throw new Error('llama.cpp Releases 未找到 ' + variantKey + ' 包（tag 探测失败）')
+    const zipUrl = rel0.assets.find((a) => a.name === v.file(rel0.tag_name)).browser_download_url
+    // ② 下载 zip（流式，进度回报）
+    embedDlState.phase = 'llama-server'
+    await embedDlFetchStream(zipUrl, join(root, 'dl.zip'), (r, t) => { embedDlState.received = r; embedDlState.total = t })
+    // ③ 解压（bin 目录整体保留——llama-server 依赖同包 dll）。
+    //    优先 tar.exe（Win10 1803+ 自带 bsdtar，吃 zip）；本机 Windows PowerShell 的
+    //    Expand-Archive 会因模块自动加载被禁而炸（CouldNotAutoloadMatchingModule，
+    //    2026-11-07 实测），故不用。tar 不可用回退 python zipfile（树核本就依赖 python）。
+    embedDlState.phase = 'unpack'
+    mkdirSync(binDir, { recursive: true })
+    const zipPath = join(root, 'dl.zip')
+    await new Promise((ok, no) => execFile('tar.exe', ['-xf', zipPath, '-C', binDir], { timeout: 300000, windowsHide: true },
+      (e2) => (e2 ? no(new Error('tar.exe 解压失败：' + e2.message)) : ok()))).catch(async (tarErr) => {
+      let py = ''
+      try { py = resolveConfig().pyExe } catch { /* 无配置 */ }
+      if (!py || !existsSync(py)) throw tarErr
+      await new Promise((ok, no) => execFile(py, ['-c',
+        'import sys,zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])', zipPath, binDir],
+        { timeout: 300000, windowsHide: true },
+        (e3) => (e3 ? no(new Error('zipfile 解压失败：' + e3.message)) : ok())))
+    })
+    rmSync(zipPath, { force: true })
+    if (!existsSync(join(binDir, 'llama-server.exe'))) throw new Error('解压后未见 llama-server.exe（bin=' + binDir + '）')
+    // ④ 下载模型（Q8_0，~610MB；已存在则跳过）
+    embedDlState.phase = 'model'
+    embedDlState.received = 0
+    embedDlState.total = 0
+    mkdirSync(mdlDir, { recursive: true })
+    const mdlTo = join(mdlDir, EMBED_DL_MODEL.file)
+    if (!existsSync(mdlTo)) {
+      await embedDlFetchStream(EMBED_DL_MODEL.url, mdlTo, (r, t) => { embedDlState.received = r; embedDlState.total = t })
+    }
+    // ⑤ 写 embed.json（noConfig=1 时跳过——测试/自定义部署用）
+    if (!opts || !opts.noConfig) {
+      embedDlState.phase = 'config'
+      const cfgPath = embedConfigFile()
+      let cur = {}
+      try { cur = JSON.parse(readFileSync(cfgPath, 'utf8').replace(/^\uFEFF/, '')) || {} } catch { /* 无旧配置 */ }
+      const fwd = (p) => String(p).replace(/\\/g, '/')
+      const next = {
+        ...cur,
+        serverExe: fwd(join(binDir, 'llama-server.exe')),
+        serverCwd: fwd(binDir),
+        serverArgs: [
+          '-m', fwd(mdlTo), '--host', '127.0.0.1', '--port', String(cur.embedPort || 8082),
+          '-c', '8192', ...(variantKey === 'cpu' ? [] : ['-ngl', '99']), '--embeddings',
+        ],
+      }
+      mkdirSync(dirname(cfgPath), { recursive: true })
+      writeFileSync(cfgPath, JSON.stringify(next, null, 2))
+    }
+    embedDlState = { busy: false, phase: 'done', received: 0, total: 0, err: '', variant: variantKey, since: Date.now() }
+    embedLogger?.info?.(`[dsh-naotu] 向量服务组件就绪：${binDir}｜${EMBED_DL_MODEL.file}（watchdog 将自动拉起）`)
+  } catch (err) {
+    embedDlState = { busy: false, phase: 'error', received: 0, total: 0, err: (err && err.message) || String(err), variant: variantKey, since: Date.now() }
+    embedLogger?.warn?.('[dsh-naotu] 向量服务下载失败：' + embedDlState.err)
   }
 }
 
@@ -2049,7 +2182,13 @@ export function apply(ctx, input = {}) {
     ctx.logger?.warn?.(`[dsh-naotu] 树核不存在：${cfg.corePy}（工具将返回错误）`)
   }
   if (!existsSync(cfg.dbPath)) {
-    ctx.logger?.warn?.(`[dsh-naotu] 树库不存在：${cfg.dbPath}（先跑 core/migrate_p2.py 移植）`)
+    // v1.3.0：树库不存在 = 全新用户 → 主动建库（core 启动即幂等建全表），不再只警告
+    try {
+      callCore(cfg, { op: 'stats' })
+      ctx.logger?.info?.(`[dsh-naotu] 树库不存在，已自动创建：${cfg.dbPath}`)
+    } catch (err) {
+      ctx.logger?.warn?.(`[dsh-naotu] 自动建库失败：${(err && err.message) || err}（检查路径可写：${cfg.dbPath}）`)
+    }
   }
   wikiMountPanelRoutes(ctx, cfg)
   // 内置向量化服务（2026-10-10 自 dsh-liubian-memory 迁入：Q4_K_M @ 8082）
@@ -2068,5 +2207,5 @@ export function apply(ctx, input = {}) {
   )
 }
 
-export const __test = { resolveConfig, configFile, DEFAULTS, rerankGate, injectMount, injectHumanText, p3ExtractHuman, p3ParseEntries, injectBuildBlock, p3File, p3Load, p3Save, p3Fp, p3BiliFile, p3BiliLoad, p3BiliSave, p3BiliTick,
+export const __test = { resolveConfig, configFile, DEFAULTS, rerankGate, injectMount, injectHumanText, p3ExtractHuman, p3ParseEntries, injectBuildBlock, p3File, p3Load, p3Save, p3Fp, p3BiliFile, p3BiliLoad, p3BiliSave, p3BiliTick, embedDlRun, embedDlState: () => embedDlState, embedDlRoot,
   setBiliSid: (s) => { p3LastSid = String(s || '') } }
