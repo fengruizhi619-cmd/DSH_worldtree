@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-export const PLUGIN_VERSION = '1.2.2'
+export const PLUGIN_VERSION = '1.2.4'
 export const TOOL_NAME = '_dsh_external_dsh_naotu'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/Feng'
@@ -69,6 +69,8 @@ const DEFAULTS = {
   injectTop: 3,
   injectMinChars: 8,
   injectTimeoutMs: 8000,
+  /** 久远提示线（天）：注入条目距今 ≥ 该天数时附「可信度可能降低」（v1.2.4；0=关） */
+  injectStaleDays: 30,
   /** 注入正文上限/条（防极端长文；8000≈insert 上限=事实上的全文） */
   injectBodyMax: 8000,
   /** P3 上行：压缩触发式提炼（管理员定纲：上下文被压缩 → 全部送提炼 → 不限篇数 → 编码上树） */
@@ -386,6 +388,7 @@ function wikiMountPanelRoutes(ctx, cfg) {
                   p3MaxTokens: file.p3MaxTokens != null ? file.p3MaxTokens : DEFAULTS.p3MaxTokens,
                   p3TotalChars: file.p3TotalChars != null ? file.p3TotalChars : DEFAULTS.p3TotalChars,
                   injectTop: file.injectTop != null ? file.injectTop : DEFAULTS.injectTop,
+                  injectStaleDays: file.injectStaleDays != null ? file.injectStaleDays : DEFAULTS.injectStaleDays,
                   injectBodyMax: file.injectBodyMax != null ? file.injectBodyMax : DEFAULTS.injectBodyMax,
                   ckptEnabled: file.ckptEnabled != null ? file.ckptEnabled : DEFAULTS.ckptEnabled,
                   ckptIntervalMs: file.ckptIntervalMs != null ? file.ckptIntervalMs : DEFAULTS.ckptIntervalMs,
@@ -430,10 +433,10 @@ function wikiMountPanelRoutes(ctx, cfg) {
                   const f = Number(params.injectKeepFrac)
                   if (Number.isFinite(f) && f > 0 && f <= 1) patch.injectKeepFrac = f
                 }
-                for (const k of ['injectRefillGuardItems', 'injectRefillGuardChars']) {
+                for (const k of ['injectRefillGuardItems', 'injectRefillGuardChars', 'injectStaleDays']) {
                   if (params[k] !== undefined && params[k] !== '') {
                     const n = Number(params[k])
-                    if (Number.isFinite(n) && n >= 0) patch[k] = n   // 0=关护栏（允许）
+                    if (Number.isFinite(n) && n >= 0) patch[k] = n   // 0=关（护栏/久远提示允许关）
                   }
                 }
                 if (params.injectQwin !== undefined && params.injectQwin !== '') {
@@ -1070,6 +1073,22 @@ function entryInContext(it, ctxText) {
   return false
 }
 
+/** 时间戳行（v1.2.4）：grew=YYYY-MM-DD；距今 ≥ injectStaleDays 天附久远提示。返回 '' 表示无时间数据。 */
+function stampFor(grew, source, staleDays) {
+  const g = grew && grew[source]
+  if (!g) return ''
+  let line = '时间 ' + g
+  const d = Number(staleDays) || 0
+  if (d > 0) {
+    const t = Date.parse(g + 'T00:00:00Z')
+    if (!isNaN(t)) {
+      const days = Math.floor((Date.now() - t) / 86400000)
+      if (days >= d) line += `（距今 ${days} 天，久远记忆可信度可能降低）`
+    }
+  }
+  return line + '\n'
+}
+
 function injectBuildBlock(addr, mem, header, tail, cap) {
   // 注入块格式源（正文全文 + 超长截断，管理员 2026-10-10 定纲；注入池块另有池版格式）
   const parts = mem.map((m) => {
@@ -1077,7 +1096,7 @@ function injectBuildBlock(addr, mem, header, tail, cap) {
     if (body.length > cap) body = body.slice(0, cap) + '\n…（超长截断；完整正文见 ' + m.source + '）'
     return '【' + m.source + (m.ws ? '（' + m.ws + '）' : '') + '】\n' + body
   })
-  return '<worldtree>' + header + addr + '\n\n' + parts.join('\n\n') + '\n\n' + tail + '</worldtree>'
+  return '<naotu>' + header + addr + '\n\n' + parts.join('\n\n') + '\n\n' + tail + '</naotu>'
 }
 
 function injectHumanText(messages) {
@@ -1242,6 +1261,7 @@ function injectMount(ctx, cfg) {
         const toInj = (gI > 0 && toInject0.length > gI) ? toInject0.slice(0, gI) : toInject0
         const bd = await guard(callCore(cfg, { op: 'bodies', sources: toInj.map((x) => x.source) }))
         const bodies = (bd && bd.ok && bd.data && bd.data.bodies) || {}
+        const grew = (bd && bd.ok && bd.data && bd.data.grew) || {}
         const rows = []
         let charUsed = 0
         for (const it of toInj) {
@@ -1252,7 +1272,7 @@ function injectMount(ctx, cfg) {
           it.injectedCycle = pool.cycle.index
           if (!it.head) it.head = String(body).split('\n')[0].slice(0, 120)
           if (!it.lead) it.lead = String(body).replace(/\s+/g, '').slice(0, 40)
-          rows.push(`【${it.source}】\n  周期热度 ${poolMean(it, pool.cycle.rounds).toFixed(3)}｜累计 ${(it.totalHeat || 0).toFixed(2)}\n${body}`)
+          rows.push(`【${it.source}】\n${stampFor(grew, it.source, cfg.injectStaleDays)}${body}`)
         }
         if (gI > 0 || gC > 0) {
           const skipped = toInject0.length - rows.length
@@ -1264,8 +1284,8 @@ function injectMount(ctx, cfg) {
         if (rows.length) {
           pool.stats.injected += rows.length
           poolSaveSync(pool)
-          const text = '<worldtree from="注入池" why="' + why + '" hits="' + rows.length + '">\n' + rows.join('\n\n')
-            + `\n\n【注入池】以上是本轮上下文压缩后补回的记忆（在池内经两级赛马留存下来），直接当作既有知识使用，不必再检索。</worldtree>`
+          const text = '<naotu from="注入池" why="' + why + '" hits="' + rows.length + '">\n' + rows.join('\n\n')
+            + '\n\n（注入池压缩补回：周期赛马幸存者，直接当作既有知识）</naotu>'
           const recall = { id: randomUUID(), role: 'user', content: [{ type: 'text', text }],
                            source: { kind: 'plugin:dsh-naotu', form: 'pool-refill' } }
           ctx.logger?.info?.(`[dsh-naotu] 注入池周期补位：${rows.length} 条（${why}）`)
@@ -1304,6 +1324,7 @@ function injectMount(ctx, cfg) {
         if (cand.length) {
           const bd = await guard(callCore(cfg, { op: 'bodies', sources: cand.map((x) => x.source) }))
           const bodies = (bd && bd.ok && bd.data && bd.data.bodies) || {}
+          const grewQ = (bd && bd.ok && bd.data && bd.data.grew) || {}
           const rows = []
           for (const r of cand) {
             const body = bodies[r.source] || ''
@@ -1312,7 +1333,7 @@ function injectMount(ctx, cfg) {
             if (pool.quick.length > 120) pool.quick.splice(0, pool.quick.length - 120)
             const head0 = String(body).split('\n')[0].slice(0, 120)
             const lead0 = String(body).replace(/\s+/g, '').slice(0, 40)
-            rows.push(`【${r.source}】\n  滑窗热度 ${r.total.toFixed(3)}（${pool.qwin.length} 轮均值）\n${body}`)
+            rows.push(`【${r.source}】\n${stampFor(grewQ, r.source, cfg.injectStaleDays)}${body}`)
             // 直注条目若在池里，同步记 head/lead 供防重复短锚
             for (const tgt of [pool.reserve.find((x) => x.source === r.source), pool.prefetch.find((x) => x.source === r.source)]) {
               if (tgt && !tgt.head) { tgt.head = head0; tgt.lead = lead0 }
@@ -1321,8 +1342,8 @@ function injectMount(ctx, cfg) {
           if (rows.length) {
             pool.stats.quickIn = (pool.stats.quickIn || 0) + rows.length
             poolSaveSync(pool)
-            const text = '<worldtree from="注入池" why="滑窗直注" hits="' + rows.length + '">\n' + rows.join('\n\n')
-              + '\n\n【注入池】以上是最近几轮提问的滑动均值检索出的高分记忆（多轮共同指向同一主题），直接当作既有知识使用。</worldtree>'
+            const text = '<naotu from="注入池" why="滑窗直注" hits="' + rows.length + '">\n' + rows.join('\n\n')
+              + '\n\n（注入池滑窗直注：近几轮共同指向的高分记忆，直接当作既有知识）</naotu>'
             const recall = { id: randomUUID(), role: 'user', content: [{ type: 'text', text }],
                              source: { kind: 'plugin:dsh-naotu', form: 'quick' } }
             ctx.logger?.info?.(`[dsh-naotu] 注入池滑窗直注：${rows.length} 条（均值榜线 ${line}，窗口 ${pool.qwin.length} 轮）`)
@@ -1354,6 +1375,7 @@ function injectMount(ctx, cfg) {
         if (cand.length) {
           const bd = await guard(callCore(cfg, { op: 'bodies', sources: cand.map((x) => x.source) }))
           const bodies = (bd && bd.ok && bd.data && bd.data.bodies) || {}
+          const grewM = (bd && bd.ok && bd.data && bd.data.grew) || {}
           const rows = []
           for (const it of cand) {
             const body = bodies[it.source] || ''
@@ -1361,13 +1383,13 @@ function injectMount(ctx, cfg) {
             it.injectedCycle = pool.cycle.index
             if (!it.head) it.head = String(body).split('\n')[0].slice(0, 120)
             if (!it.lead) it.lead = String(body).replace(/\s+/g, '').slice(0, 40)
-            rows.push(`【${it.source}】\n  周期热度 ${poolMean(it, pool.cycle.rounds).toFixed(3)}｜累计 ${(it.totalHeat || 0).toFixed(2)}\n${body}`)
+            rows.push(`【${it.source}】\n${stampFor(grewM, it.source, cfg.injectStaleDays)}${body}`)
           }
           if (rows.length) {
             pool.stats.injected += rows.length
             poolSaveSync(pool)
-            const text = '<worldtree from="注入池" why="命中补漏" hits="' + rows.length + '">\n' + rows.join('\n\n')
-              + '\n\n【注入池】以上是预备池中经两级赛马留存、本轮检索又命中且上下文没有的记忆，直接当作既有知识使用。</worldtree>'
+            const text = '<naotu from="注入池" why="命中补漏" hits="' + rows.length + '">\n' + rows.join('\n\n')
+              + '\n\n（注入池命中补漏：检索命中且未注入过的池内记忆，直接当作既有知识）</naotu>'
             const recall = { id: randomUUID(), role: 'user', content: [{ type: 'text', text }],
                              source: { kind: 'plugin:dsh-naotu', form: 'pool-hit' } }
             ctx.logger?.info?.(`[dsh-naotu] 注入池命中补漏：${rows.length} 条`)
@@ -1574,7 +1596,7 @@ function p3HotNums() {
  * 跨通道幂等 = 正文指纹（sha256）：bili ref 口径与 DSH seq 口径不可换算，
  * 正文 hash 是两种编号的共同语言。指纹只对入队 seg 记（低于 minChars 不记，
  * 防内容永久丢失）。状态水位/块标记/指纹存 p3_bili.json（不碰 bili 库）。 */
-const BILI_SKIP_PREFIXES = ['<worldtree ', '<system-reminder', '<skill_content', '<skill ', '[ACP', '📦']
+const BILI_SKIP_PREFIXES = ['<worldtree ', '<naotu ', '<naotu>', '<system-reminder', '<skill_content', '<skill ', '[ACP', '📦']
 
 let p3LastSid = ''          // 从 session/event 持续刷新（bili 轮询需要会话键）
 let p3BiliState = null

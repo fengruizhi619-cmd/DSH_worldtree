@@ -1,6 +1,6 @@
 {
     "name":  "dsh-naotu",
-    "version":  "1.2.2",
+    "version":  "1.2.4",
     "description":  "脑图 —— 原世界树系统（记忆系统 v2）：向量主题树（层进生长/主题地址/生长记录）。数据迁移完成后接替原记忆插件。独立分支，不属于流变系列。",
     "private":  true,
     "type":  "module",

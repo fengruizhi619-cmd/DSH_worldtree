@@ -1157,11 +1157,13 @@ def _cli():
         _srcs = [s for s in (req.get("sources") or []) if s]
         conn = sqlite3.connect(db)
         _bodies = {}
+        _grew = {}
         for s in _srcs:
-            r = conn.execute("SELECT body FROM entries WHERE source=?", (s,)).fetchone()
+            r = conn.execute("SELECT body, grew_at FROM entries WHERE source=?", (s,)).fetchone()
             _bodies[s] = (r[0] if r and r[0] else "")
+            _grew[s] = ((r[1] or "")[:10] if r else "")   # YYYY-MM-DD（v1.2.4 时间戳注入）
         conn.close()
-        out = {"ok": True, "bodies": _bodies}
+        out = {"ok": True, "bodies": _bodies, "grew": _grew}
     elif op == "wt_tree":
         out = op_wt_tree(t)
     elif op == "tag_table":

@@ -269,6 +269,7 @@ window.__ModuleLoader__.load({
       '.nao-btn:disabled{opacity:.55;cursor:default}',
       /* 两列 */
       '.nao-body{flex:1;min-height:0;display:flex;overflow-y:auto;overflow-x:hidden}',
+      '.nao-page{flex:1;min-width:0;min-height:0;display:block;overflow-y:auto;overflow-x:hidden}',   /* v1.2.4：pipe/settings 纵向滚动（块级布局，内容撑 scrollHeight） */
       '.nao-left{flex:1;min-width:0;display:flex;flex-direction:column;padding:12px 12px 0;box-sizing:border-box}',
       '.nao-right{width:300px;flex:0 0 300px;border-left:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.08));display:flex;flex-direction:column;min-height:0;background:var(--dsw-alias-bg-base,#f7f7f8);box-sizing:border-box}',
       /* 工具条 */
@@ -743,7 +744,7 @@ window.__ModuleLoader__.load({
       { id: 'p3', title: '压缩提炼', desc: '上下文被压缩 → 区间内容送提炼上树；分片控制防截断，超出总上限保新弃旧' },
       { id: 'pool', title: '注入池 · 赛马与直注', desc: '两级赛马决定谁留下；滑窗均值直注与命中补漏决定谁进来（LLM 重排闸把关真相关）' },
       { id: 'cycle', title: '注入池 · 周期与护栏', desc: '压缩触发周期结算：预热批晋级 → 周期末按热度名次补回；护栏防大会话爆注' },
-      { id: 'inject', title: '注入基础', desc: '注入块条数与正文字数上限' },
+      { id: 'inject', title: '注入基础', desc: '注入块条数、正文字数上限与久远提示线' },
       { id: 'ckpt', title: '检查点调度', desc: '五档稀释快照（1月/7天全量 + 24h/6h/1h 增量）的定期维护' },
     ]
     var SETTINGS_META = {
@@ -758,6 +759,7 @@ window.__ModuleLoader__.load({
       p3BiliSummaryDirect:{ grp: 'p3', label: '块摘要直采', bool: true, hint: '压缩块摘要 ≥100 字零 LLM 直接入库' },
       p3BiliDb:           { grp: 'p3', label: 'bili 库路径', ph: 'C:/Users/…/billion-context/sessions/index.db' },
       injectTop:      { grp: 'inject', label: '注入条数 / 轮', ph: '3' },
+      injectStaleDays:{ grp: 'inject', label: '久远提示线（天）', ph: '30', hint: '注入条目距今 ≥ 该天数时附「可信度可能降低」提示（0=关）' },
       injectBodyMax:  { grp: 'inject', label: '正文上限（字/条）', ph: '8000' },
       injectPool:        { grp: 'pool', label: '注入池开关', bool: true },
       injectQwin:        { grp: 'pool', label: '滑窗直注·窗口（轮）', ph: '3', hint: '最近 N 轮查询向量取均值，1-6' },
@@ -1300,8 +1302,8 @@ window.__ModuleLoader__.load({
             typeof back === 'function' ? h('button', { className: 'nao-btn', type: 'button', onClick: function () { back() } }, '返回对话') : null),
           view === 'brain' ? h(AtlasView, { count: tree.count }) : null,
           view === 'sleep' ? h(SleepView) : null,
-          view === 'pipe' ? h(PipePanel) : null,
-          view === 'settings' ? h(SettingsPanel) : null))
+          view === 'pipe' ? h('div', { className: 'nao-page' }, h(PipePanel)) : null,
+          view === 'settings' ? h('div', { className: 'nao-page' }, h(SettingsPanel)) : null))
     }
 
     var WikiApp = App          // 宿主注册名保持 WikiApp（slots 注入 + 桩测按函数名取）
